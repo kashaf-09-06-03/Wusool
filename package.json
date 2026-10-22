@@ -1,0 +1,44 @@
+{
+  "name": "wusool",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Wusool: conversational, multimodal group-expense reconstruction and settlement (HCI research prototype).",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "playwright test",
+    "samples": "python scripts/make_samples.py",
+    "reset-db": "node scripts/reset-db.mjs"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.0.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.61.0",
+    "motion": "^14.5.0",
+    "next": "^15.5.28",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "server-only": "^0.0.1",
+    "sharp": "^0.35.5",
+    "swr": "^2.5.1",
+    "tesseract.js": "^7.0.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "postcss": "^8.5.31",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  }
+}
