@@ -8,6 +8,23 @@ const nextConfig: NextConfig = {
   },
   // Development is commonly opened from a phone on the LAN to test the mobile join flow.
   allowedDevOrigins: ["192.168.*.*", "10.*.*.*"],
+  // The SQLite database and uploads live in ./.data inside the project. Without this, every DB write
+  // (sign-in, new outing, story, receipt) made the dev server recompile the app, which stalled the next
+  // page load for seconds and occasionally crashed a request mid-rebuild.
+  webpack: (config, { dev }) => {
+    if (dev) {
+      const ignored = config.watchOptions?.ignored;
+      const dataDir = /[\\/]\.data([\\/]|$)/;
+      config.watchOptions = {
+        ...config.watchOptions,
+        ignored:
+          ignored instanceof RegExp
+            ? new RegExp(`(?:${ignored.source})|(?:${dataDir.source})`)
+            : [...(Array.isArray(ignored) ? ignored : ignored ? [ignored] : []), "**/.data/**"],
+      };
+    }
+    return config;
+  },
 };
 
 export default nextConfig;

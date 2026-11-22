@@ -24,18 +24,32 @@ export function NavProvider({ children }: { children: ReactNode }) {
 
   const go = useCallback(
     (fn: () => void, direction: "forward" | "back" | "replace") => {
-      const doc = document as Document & { startViewTransition?: (cb: () => Promise<void>) => unknown };
+      type VT = { skipTransition: () => void; ready: Promise<void>; finished: Promise<void> };
+      const doc = document as Document & { startViewTransition?: (cb: () => Promise<void>) => VT };
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       document.documentElement.dataset.nav = direction;
       if (!doc.startViewTransition || reduce) return fn();
-      doc.startViewTransition(
+      let transition: VT | undefined = undefined;
+      transition = doc.startViewTransition(
         () =>
           new Promise<void>((resolve) => {
             pending.current = resolve;
             fn();
-            setTimeout(resolve, 900); // never block the UI if navigation is slow
+            // The browser keeps showing a frozen picture of the current page until we resolve, then slides
+            // whatever is on screen at that moment. If the next page still hasn't arrived (first visit of a
+            // dynamic route, slow network, dev compile), sliding would animate the OLD page into itself and
+            // then pop the real one in. So: give up on the animation, unfreeze, and let the page appear when ready.
+            setTimeout(() => {
+              if (pending.current !== resolve) return; // navigation already committed in time
+              pending.current = null;
+              transition?.skipTransition();
+              resolve();
+            }, 700);
           }),
       );
+      // A skipped transition rejects these; that's expected, not an error.
+      transition.ready.catch(() => {});
+      transition.finished.catch(() => {});
     },
     [],
   );
