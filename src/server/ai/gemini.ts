@@ -13,12 +13,69 @@ import { parsePKR } from "@/lib/money";
  * Gemini never does the maths: the deterministic ledger does.
  */
 export const geminiAvailable = () => Boolean(process.env.GEMINI_API_KEY);
-const MODEL = () => process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
+/**
+ * Speed matters: users wait on these calls. Measured Nov 2026: full-size "flash" models with default
+ * thinking took 15–30 s per call, and an overloaded model can take ~10 s just to say "503". So:
+ *  - each task has its own chain of models, fastest first (lite models with low/minimal thinking: ~2–4 s),
+ *  - thinking is kept low (transcription needs none; story/receipt reading needs a little),
+ *  - a model that answers 429/500/503 is skipped for a few minutes instead of being retried every call.
+ * Override any chain in .env.local with a comma-separated list.
+ */
+type Task = "stt" | "story" | "receipt";
+const DEFAULT_CHAINS: Record<Task, string> = {
+  stt: "gemini-3.1-flash-lite,gemini-3.5-flash-lite,gemini-3.5-flash",
+  story: "gemini-3.1-flash-lite,gemini-3.5-flash-lite,gemini-3.5-flash",
+  receipt: "gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-3.5-flash",
+};
+const ENV_CHAINS: Record<Task, string> = { stt: "GEMINI_STT_MODELS", story: "GEMINI_STORY_MODELS", receipt: "GEMINI_RECEIPT_MODELS" };
+const THINKING: Record<Task, "minimal" | "low"> = { stt: "minimal", story: "low", receipt: "low" };
+
+const chain = (task: Task) =>
+  (process.env[ENV_CHAINS[task]] ?? process.env.GEMINI_MODELS ?? DEFAULT_CHAINS[task]).split(",").map((m) => m.trim()).filter(Boolean);
+
+const RETRYABLE = new Set([429, 500, 503]);
+const COOLDOWN_MS = 3 * 60_000;
+const coolingUntil = new Map<string, number>();
 
 type Part = { text: string } | { inline_data: { mime_type: string; data: string } };
+type GenOpts = { schema?: object; system?: string; temperature?: number };
 
-async function generate(parts: Part[], opts: { schema?: object; system?: string; temperature?: number } = {}): Promise<string> {
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL()}:generateContent`, {
+async function generate(task: Task, parts: Part[], opts: GenOpts = {}): Promise<string> {
+  const all = chain(task);
+  // Skip models that recently said they were overloaded, unless that would leave nothing to try.
+  const ready = all.filter((m) => (coolingUntil.get(m) ?? 0) < Date.now());
+  const models = ready.length ? ready : all;
+  let lastError: unknown = new Error("Gemini: no model configured.");
+  for (const model of models) {
+    const started = Date.now();
+    try {
+      const text = await generateWith(model, parts, opts, THINKING[task]);
+      if (process.env.NODE_ENV !== "production") console.info(`[wusool] Gemini ${task} via ${model}: ${Date.now() - started} ms`);
+      return text;
+    } catch (e) {
+      lastError = e;
+      const status = (e as { status?: number }).status;
+      const timedOut = (e as { name?: string }).name === "TimeoutError";
+      if (!timedOut && (!status || !RETRYABLE.has(status))) throw e;
+      coolingUntil.set(model, Date.now() + COOLDOWN_MS);
+      console.warn(`[wusool] Gemini ${model} unavailable (${timedOut ? "timeout" : status}); skipping it for a few minutes`);
+    }
+  }
+  throw lastError;
+}
+
+async function generateWith(model: string, parts: Part[], opts: GenOpts, thinking: "minimal" | "low"): Promise<string> {
+  try {
+    return await request(model, parts, opts, thinking);
+  } catch (e) {
+    // Some models don't accept every thinking level (e.g. no "minimal"); retry once at "low".
+    if ((e as { status?: number }).status === 400 && thinking !== "low" && /thinking/i.test((e as Error).message)) return request(model, parts, opts, "low");
+    throw e;
+  }
+}
+
+async function request(model: string, parts: Part[], opts: GenOpts, thinking: "minimal" | "low"): Promise<string> {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY! },
     body: JSON.stringify({
@@ -26,13 +83,14 @@ async function generate(parts: Part[], opts: { schema?: object; system?: string;
       contents: [{ role: "user", parts }],
       generation_config: {
         temperature: opts.temperature ?? 0,
+        thinking_config: { thinking_level: thinking },
         ...(opts.schema ? { response_mime_type: "application/json", response_schema: opts.schema } : {}),
       },
     }),
-    signal: AbortSignal.timeout(90_000),
+    signal: AbortSignal.timeout(45_000),
   });
   const json = (await res.json().catch(() => null)) as { candidates?: { content?: { parts?: { text?: string }[] } }[]; error?: { message?: string } } | null;
-  if (!res.ok) throw new Error(`Gemini ${res.status}: ${json?.error?.message ?? "request failed"}`);
+  if (!res.ok) throw Object.assign(new Error(`Gemini ${model} ${res.status}: ${json?.error?.message ?? "request failed"}`), { status: res.status });
   const text = json?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
   if (!text.trim()) throw new Error("Gemini returned an empty response.");
   return text;
@@ -47,7 +105,7 @@ export async function transcribeWithGemini(audio: Buffer, mime: string, hints: {
 - Write money amounts as digits (e.g. "a thousand rupees" → "1000 rupees").
 - Spell these names and words exactly like this if you hear them: ${[...hints.names, ...hints.terms].slice(0, 60).join(", ") || "(none)"}.
 - Add normal punctuation. Output only the transcript text, nothing else.`;
-  const text = await generate([{ inline_data: { mime_type: mime.split(";")[0] || "audio/webm", data: audio.toString("base64") } }, { text: prompt }]);
+  const text = await generate("stt", [{ inline_data: { mime_type: mime.split(";")[0] || "audio/webm", data: audio.toString("base64") } }, { text: prompt }]);
   return text.trim().replace(/^["“]|["”]$/g, "");
 }
 
@@ -96,6 +154,7 @@ const Receipt = z.object({
 
 export async function extractReceiptWithGemini(image: Buffer, mime: string, hint: string): Promise<ParsedReceipt> {
   const text = await generate(
+    "receipt",
     [
       { inline_data: { mime_type: mime, data: image.toString("base64") } },
       { text: `Labelled by the uploader as: ${hint}. Extract every purchased line item (not token/table/invoice/NTN/cashier/payment-method lines), every printed tax/service/fee/discount line, the subtotal and the total. Copy amounts exactly as printed; never compute or guess digits — mark unclear lines legible=false and explain in notes.` },
@@ -187,10 +246,11 @@ export const STORY_SYSTEM = `You turn a student's description of a group outing 
 Use only the member ids, expense ids and item ids provided. Fact types:
 - "item": a person had a specific line item (itemId). One fact per item; a sentence like "Ayesha had the pasta and the Americano" gives two.
 - "rest": someone had "whatever was left" of an expense.
-- "payer": who paid an existing expense. "participants": who shared a whole expense.
+- "payer": who paid an existing expense; put the payer(s) in payerIds. "X ne pay kiya/ki", "X ne bill diya", "X paid for the biryani" and "Ali ne Careem kiya" mean X PAID (a "payer" fact), not that X ate it.
+- "participants": who shared a whole expense, in memberIds. "Sara aur Hamza uske saath thay" (with him) includes the person "uske" refers to.
 - "split": splitMode "equal" when they say an expense should be split equally/evenly; "itemised" when they want it by what each person had (including "taxes according to what we got").
 - "newExpense": an expense the story mentions that has no matching expense (e.g. a ride with an amount). If the story mentions an expense that already exists (same kind or amount), refer to that expense instead of creating a new one. payerIds must be empty when the payer isn't stated (e.g. "it cost us 1000"). memberIds = who shared it ("together"/"all of us" = everyone).
-- "handoff": cash given to an intermediary to pay someone else; changeReturned only if stated.
+- "handoff": cash one member gives another: fromId = who handed it over, viaId = who received it (the intermediary), toId = who it was finally meant for, or null if the story doesn't say. changeReturned only if stated.
 - "unknownName": a person mentioned who isn't a member. "note": an understood instruction with nothing to change. "unparsed": anything you can't use.
 "I/me" is the narrator. Convert spoken numbers to digits in amountPKR. Never calculate shares. Mark confidence "low" and list uncertainMemberIds when unsure.`;
 
@@ -209,10 +269,16 @@ export function factsFromFlat(flat: FlatFactT[], ctx: NarrativeContext): Fact[] 
   const expById = new Map(ctx.expenses.map((e) => [e.id, e]));
   const keep = (xs: string[]) => xs.filter((x) => memberIds.has(x));
   const out: Fact[] = [];
-  for (const f of flat) {
+  for (const raw of flat) {
+    // Small models sometimes omit an amount that is written right in the sentence ("ko 1500 diye"); take it from
+    // the sentence only when exactly one number is there, so we never pick between amounts.
+    const nums = raw.sentence.match(/\d[\d,]*(?:\.\d+)?/g) ?? [];
+    const f = raw.type === "handoff" && !raw.amountPKR && nums.length === 1 ? { ...raw, amountPKR: nums[0] } : raw;
     const base = { sentence: f.sentence, confidence: f.confidence };
     const e = f.expenseId ? expById.get(f.expenseId) : undefined;
-    if ((f.type === "payer" || f.type === "participants") && e && keep(f.memberIds).length) out.push({ type: f.type, expenseId: e.id, memberIds: keep(f.memberIds), uncertainIds: keep(f.uncertainMemberIds), ...base });
+    // Models put payers in payerIds (the field's name) as often as in memberIds; accept either.
+    const people = f.type === "payer" ? [...new Set(keep([...f.payerIds, ...f.memberIds]))] : keep(f.memberIds);
+    if ((f.type === "payer" || f.type === "participants") && e && people.length) out.push({ type: f.type, expenseId: e.id, memberIds: people, uncertainIds: keep(f.uncertainMemberIds), ...base });
     else if (f.type === "item" && e && f.itemId && e.items.some((i) => i.id === f.itemId) && keep(f.memberIds).length)
       out.push({ type: "item", expenseId: e.id, itemId: f.itemId, memberIds: keep(f.memberIds), uncertainIds: keep(f.uncertainMemberIds), ...base });
     else if (f.type === "rest" && e && keep(f.memberIds).length) out.push({ type: "rest", expenseId: e.id, memberIds: keep(f.memberIds), sentence: f.sentence });
@@ -231,6 +297,18 @@ export function factsFromFlat(flat: FlatFactT[], ctx: NarrativeContext): Fact[] 
     else if (f.type === "handoff" && f.fromId && f.viaId && f.toId && memberIds.has(f.fromId) && memberIds.has(f.viaId) && memberIds.has(f.toId) && f.amountPKR) {
       const given = parsePKR(f.amountPKR);
       if (given) out.push({ type: "handoff", fromId: f.fromId, viaId: f.viaId, toId: f.toId, given, forwarded: null, changeReturned: f.changeReturned ?? "unknown", sentence: f.sentence });
+    } else if (f.type === "handoff" && f.fromId && memberIds.has(f.fromId) && (f.viaId ?? f.toId) && memberIds.has((f.viaId ?? f.toId)!) && f.amountPKR) {
+      // Cash went from one member to another but the story doesn't say who it was finally for. Don't guess a
+      // recipient (that would change who owes whom); say what was understood and how to complete it.
+      const name = (id: string) => ctx.members.find((m) => m.id === id)?.name ?? "someone";
+      const via = (f.viaId ?? f.toId)!;
+      const change = f.changeReturned === "no" ? " and the change wasn’t returned" : "";
+      const example = ctx.members.find((m) => m.id !== f.fromId && m.id !== via)?.name ?? "them";
+      out.push({
+        type: "note",
+        text: `${name(f.fromId)} gave ${name(via)} PKR ${f.amountPKR}${change}. Who was it for? Say e.g. “${name(f.fromId)} gave ${name(via)} ${f.amountPKR} to pay ${example}” so Wusool can track it.`,
+        sentence: f.sentence,
+      });
     } else if (f.type === "unknownName" && f.name) out.push({ type: "unknownName", name: f.name, sentence: f.sentence, suggestionIds: [] });
     else if (f.type === "note") out.push({ type: "note", text: f.note ?? "Understood.", sentence: f.sentence });
     else out.push({ type: "unparsed", sentence: f.sentence });
@@ -239,7 +317,7 @@ export function factsFromFlat(flat: FlatFactT[], ctx: NarrativeContext): Fact[] 
 }
 
 export async function interpretWithGemini(transcript: string, ctx: NarrativeContext): Promise<NarrativeResult> {
-  const text = await generate([{ text: storyPrompt(transcript, ctx) }], { schema: FACT_SCHEMA, system: STORY_SYSTEM });
+  const text = await generate("story", [{ text: storyPrompt(transcript, ctx) }], { schema: FACT_SCHEMA, system: STORY_SYSTEM });
   const out = Story.parse(JSON.parse(text));
   return { facts: factsFromFlat(out.facts, ctx), uncertainWords: out.uncertainWords, interpreter: "gemini" };
 }
