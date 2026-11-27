@@ -3,7 +3,7 @@ import useSWR from "swr";
 import { motion } from "motion/react";
 import { Bell, Heart, Image as ImageIcon, Receipt, UserPlus, Wallet } from "lucide-react";
 import clsx from "clsx";
-import { Screen, useMe } from "@/components/shell";
+import { Screen, TopBar, useMe } from "@/components/shell";
 import { Button, Skeleton } from "@/components/ui";
 import { api } from "@/lib/client/api";
 import { useNav } from "@/lib/client/nav";
@@ -31,13 +31,9 @@ export default function Inbox() {
 
   return (
     <Screen tabBar>
-      <div className="flex items-end justify-between px-5 pt-8">
+      <TopBar back title="Inbox" collapse right={unread > 0 ? <Button size="S" variant="text" onClick={async () => (await api("/api/inbox", "POST", {}), mutate())}>Mark all read</Button> : undefined} />
+      <div className="flex items-end justify-between px-5 pt-1">
         <h1 className="t-title">Inbox</h1>
-        {unread > 0 && (
-          <Button size="S" variant="text" onClick={async () => (await api("/api/inbox", "POST", {}), mutate())}>
-            Mark all read
-          </Button>
-        )}
       </div>
       <div className="flex flex-col gap-6 px-5 pt-4">
         {!data && <Skeleton className="h-48" />}
@@ -50,7 +46,7 @@ export default function Inbox() {
         )}
         {Object.entries(groups).map(([outing, rows]) => (
           <section key={outing}>
-            <h2 className="t-overline mb-2 text-ink-2">{outing}</h2>
+            <h2 className="t-label mb-2 text-[14px] text-ink-2">{outing}</h2>
             <ul className="flex flex-col gap-2">
               {rows.map((i, idx) => {
                 const Icon = ICON[i.type] ?? Bell;
@@ -63,7 +59,7 @@ export default function Inbox() {
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-2">
                           <span className="t-label truncate text-[15px]">{i.title}</span>
-                          {!i.read && <span className="t-overline shrink-0 rounded-full bg-pink px-1.5 py-0.5 text-[9px] text-white">New</span>}
+                          {!i.read && <span className="h-2 w-2 shrink-0 rounded-full bg-pink" aria-label="Unread" />}
                         </span>
                         <span className="t-caption block text-ink-2">{i.body}</span>
                         <span className="t-caption mt-0.5 block text-ink-2/70">{new Date(i.created_at).toLocaleString("en-PK", { dateStyle: "medium", timeStyle: "short" })}</span>

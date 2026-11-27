@@ -3,7 +3,7 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, Copy, Link2, Plus, RefreshCw, Share, Users } from "lucide-react";
 import clsx from "clsx";
-import { Avatar, Button, Chip, ConfirmSheet, Sheet, Sticker, TextField, Toggle } from "./ui";
+import { Avatar, Button, Chip, ConfirmSheet, Sheet, TextField, Toggle } from "./ui";
 import { Burst } from "./fx";
 import { api, ApiError } from "@/lib/client/api";
 import { useToast } from "@/lib/client/toast";
@@ -63,20 +63,6 @@ export function InviteActions({ data, onSettings, onManual, compact }: { data: O
   return (
     <div className="flex flex-col gap-3">
       <div className="relative rounded-[20px] border border-line bg-paper-warm p-4">
-        <motion.span
-          className="absolute -right-1 -top-5 origin-bottom-right"
-          initial={{ scale: 0, rotate: -40, y: 12 }}
-          animate={copied ? { scale: [1, 1.18, 1], rotate: [-6, 6, -4], y: [0, -10, 0] } : { scale: 1, rotate: -6, y: [0, -3, 0] }}
-          transition={copied ? { duration: 0.6, ease: "easeOut" } : { scale: { type: "spring", stiffness: 380, damping: 14, delay: 0.35 }, rotate: { type: "spring", stiffness: 200, damping: 10, delay: 0.35 }, y: { repeat: Infinity, duration: 3.2, ease: "easeInOut", delay: 1 } }}
-        >
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.span key={copied ? "c" : "p"} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }} className="block">
-              <Sticker color={copied ? "pink" : "lime"} rotate={0}>
-                {copied ? "now paste it ✦" : "paste in the group chat ✦"}
-              </Sticker>
-            </motion.span>
-          </AnimatePresence>
-        </motion.span>
         <div className="flex items-center gap-2.5">
           <Link2 size={20} className="shrink-0 text-blue" />
           <span className="t-label truncate text-[17px]" data-testid="invite-url">
@@ -106,18 +92,15 @@ export function InviteActions({ data, onSettings, onManual, compact }: { data: O
       <Button variant="glass" full icon={<Share size={20} />} onClick={share}>
         Share to WhatsApp
       </Button>
-      <p className="t-caption text-ink-2">Opens WhatsApp with the message prefilled. Nothing is sent automatically, and sharing doesn’t turn on WhatsApp notifications.</p>
+      <p className="t-caption px-1 text-center text-ink-2">Opens WhatsApp with a message ready. Nothing sends automatically.</p>
       {!compact && (
-        <a href={`/welcome?add=1&next=${encodeURIComponent(`/j/${token}`)}`} className="t-caption mt-1 inline-flex items-center gap-1.5 self-start rounded-full bg-paper-warm px-3 py-2 text-ink-2 hover:text-ink">
-          <Users size={14} /> No WhatsApp handy? Test the link as a friend on this device
-        </a>
-      )}
-      {!compact && (
-        <div className="mt-1 flex items-center gap-3">
-          <Button variant="outline" size="M" icon={<Plus size={18} />} onClick={onManual}>
+        <div className="mt-1 flex items-center justify-between">
+          <Button variant="text" size="S" icon={<Plus size={16} />} onClick={onManual}>
             Add manually
           </Button>
-          <span className="t-caption text-ink-2">Backup: for friends without the link</span>
+          <a href={`/welcome?add=1&next=${encodeURIComponent(`/j/${token}`)}`} className="t-caption inline-flex items-center gap-1.5 px-2 py-2 text-ink-2">
+            <Users size={14} /> Test as a friend
+          </a>
         </div>
       )}
     </div>
@@ -280,16 +263,16 @@ export function Roster({ data, live }: { data: OutingData; live?: boolean }) {
   return (
     <div>
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="t-label text-[17px]">Joined so far · {data.members.length}</h3>
-        {live && (
-          <span className="t-caption flex items-center gap-1.5 text-ink-2">
-            <span className="relative flex h-2.5 w-2.5">
+        <h3 className="t-label flex items-center gap-2 text-[17px]">
+          Joined · {data.members.length}
+          {live && (
+            <span className="relative flex h-2.5 w-2.5" title="Updates as people join">
               <span className="absolute inset-0 animate-ping rounded-full bg-lime" />
               <span className="relative h-2.5 w-2.5 rounded-full border border-ink/30 bg-lime" />
+              <span className="sr-only">Updates live as people join</span>
             </span>
-            Live: updates as people join
-          </span>
-        )}
+          )}
+        </h3>
       </div>
       <ul>
         <AnimatePresence initial={false}>

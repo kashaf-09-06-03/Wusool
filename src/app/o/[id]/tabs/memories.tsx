@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion, type PanInfo } from "motion/react";
-import { ChevronLeft, ChevronRight, Download, Eye, ImagePlus, Trash, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, ImagePlus, Trash, X } from "lucide-react";
 import { Avatar, Button, ConfirmSheet, IconButton, Notice, Sheet, TextField, initialsOf } from "@/components/ui";
 import { api, ApiError, upload } from "@/lib/client/api";
 import { useToast } from "@/lib/client/toast";
@@ -53,11 +53,6 @@ export function MemoriesTab({ data, onChanged }: { data: OutingData; onChanged: 
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <p className="t-caption flex items-center gap-1.5 text-ink-2">
-          <Eye size={14} /> Visible to {data.members.length} outing members only · never mixed with receipts
-        </p>
-      </div>
       <Button variant="glass" full icon={<ImagePlus size={20} />} onClick={() => input.current?.click()} disabled={data.outing.status === "archived"}>
         Add photos
       </Button>

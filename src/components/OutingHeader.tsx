@@ -1,8 +1,8 @@
 "use client";
 import type { ReactNode } from "react";
-import { Calendar, Pencil, User } from "lucide-react";
+import { Calendar, Camera, Pencil } from "lucide-react";
 import { motion, useScroll, useTransform } from "motion/react";
-import { AvatarStack } from "./ui";
+import { AvatarStack, press } from "./ui";
 import { Banner, Logo } from "./collage";
 import { vt } from "@/lib/client/nav";
 
@@ -12,6 +12,7 @@ export function OutingHeader({
   members,
   memberCount,
   onRename,
+  onLogo,
   topLeft,
   topRight,
   sticker,
@@ -20,6 +21,8 @@ export function OutingHeader({
   members: { initials: string; color: string }[];
   memberCount: number;
   onRename?: () => void;
+  /** Organizer only: tap the picture to change it. */
+  onLogo?: () => void;
   topLeft?: ReactNode;
   topRight?: ReactNode;
   sticker?: ReactNode;
@@ -42,20 +45,26 @@ export function OutingHeader({
       </div>
       <div className="relative z-10 -mt-12 px-4">
         <motion.div style={{ scale: logoScale, transformOrigin: "0% 100%" }} className="inline-block">
-          <Logo type={outing.logoType} value={outing.logoValue} name={outing.name} size={92} vtName={`logo-${outing.id}`} />
+          {onLogo ? (
+            <motion.button {...press(0.94, 0.95)} onClick={onLogo} aria-label="Change outing picture" className="press-own relative block rounded-full">
+              <Logo type={outing.logoType} value={outing.logoValue} name={outing.name} size={92} vtName={`logo-${outing.id}`} />
+              <span className="glass-solid absolute -bottom-0.5 -right-0.5 flex h-8 w-8 items-center justify-center rounded-full text-ink">
+                <Camera size={15} />
+              </span>
+            </motion.button>
+          ) : (
+            <Logo type={outing.logoType} value={outing.logoValue} name={outing.name} size={92} vtName={`logo-${outing.id}`} />
+          )}
         </motion.div>
       </div>
       <div className="px-5 pt-2">
-        <p className="t-overline text-ink-2">
-          Outing {String(outing.seq).padStart(3, "0")}
-          {outing.isSample && <span className="ml-2 rounded-full bg-pink-tint px-1.5 py-0.5 text-pink-text">Sample data</span>}
-        </p>
+        {outing.isSample && <span className="t-chip inline-block rounded-full bg-pink-tint px-2 py-0.5 text-pink-text">Sample</span>}
         <div className="mt-1 flex items-center gap-2">
           <h1 className="t-title" style={vt(`title-${outing.id}`)}>
             {outing.name}
           </h1>
           {onRename && (
-            <motion.button whileTap={{ scale: 0.9 }} onClick={onRename} aria-label="Rename outing" className="flex h-11 w-11 items-center justify-center rounded-full bg-paper-warm">
+            <motion.button {...press(0.88, 0.9)} onClick={onRename} aria-label="Rename outing" className="press-own flex h-11 w-11 items-center justify-center rounded-full bg-paper-warm">
               <Pencil size={17} />
             </motion.button>
           )}
@@ -65,9 +74,6 @@ export function OutingHeader({
             <Calendar size={15} /> {[outing.date, outing.place].filter(Boolean).join(" · ")}
           </p>
         )}
-        <p className="t-ui mt-1 flex items-center gap-2 text-[14px] text-ink-2">
-          <User size={15} /> Organized by {outing.organizerName}
-        </p>
         <div className="mt-3 flex items-center gap-3">
           <AvatarStack people={members.slice(0, 3)} extra={Math.max(0, memberCount - 3)} size={34} />
           <span className="t-label text-[14px]">

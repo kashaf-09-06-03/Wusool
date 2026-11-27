@@ -1,10 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 import { motion, useMotionValue, useSpring, useTransform } from "motion/react";
-import { Bell, Ellipsis, Link2, Plus, Sparkles } from "lucide-react";
+import { Bell, ChevronRight, Ellipsis, Link2, Plus, Sparkles, Wallet } from "lucide-react";
 import { Screen, useMe } from "@/components/shell";
-import { Aura, AvatarStack, Button, ConfirmSheet, IconButton, Reveal, revealItem, Sheet, Skeleton, Sticker, TextField } from "@/components/ui";
+import { Aura, AvatarStack, Button, ConfirmSheet, haptic, IconButton, press, Sheet, Skeleton, TextField } from "@/components/ui";
 import { Banner, Doodle, Logo } from "@/components/collage";
 import { api, ApiError } from "@/lib/client/api";
 import { useNav, vt } from "@/lib/client/nav";
@@ -13,6 +13,13 @@ import { formatPKR } from "@/lib/money";
 import type { HomeData } from "@/lib/client/types";
 
 type Outing = HomeData["outings"][number];
+
+/**
+ * The opening "assembly" plays once per app launch (module state survives client-side navigation but not a
+ * reload), so coming back to Home later is instant instead of re-animating every time.
+ */
+let introPlayed = false;
+const IOS = [0.32, 0.72, 0, 1] as const;
 
 export default function Home() {
   const { me } = useMe();
@@ -55,11 +62,17 @@ export default function Home() {
   };
 
   const outings = data?.outings ?? [];
+  const [intro] = useState(() => !introPlayed);
+  useEffect(() => {
+    introPlayed = true;
+  }, []);
+  const at = (d: number) => (intro ? d : 0);
   return (
     <Screen tabBar>
-      {/* Header: wordmark + chrome star, greeting with a one-line money summary */}
+      {/* Header: wordmark + chrome star, greeting, and the way into balances */}
       <header className="relative px-5 pb-2 pt-6">
         <Aura tones={["lime", "pink", "blue"]} />
+        <FloatingDots intro={intro} />
         <div className="relative flex items-center justify-between">
           <div className="flex items-center gap-2">
             <motion.img src="/assets/star3d-cut.png" alt="" className="h-7 w-7" initial={{ rotate: -180, scale: 0 }} animate={{ rotate: 0, scale: 1 }} transition={{ type: "spring", stiffness: 160, damping: 12 }} />
@@ -72,36 +85,41 @@ export default function Home() {
                 {(data?.unread ?? 0) > 0 && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-pink ring-2 ring-white" />}
               </span>
             </IconButton>
-            <motion.button whileTap={{ scale: 0.92 }} onClick={() => nav.push("/profile")} aria-label="Profile" className="chrome-ring flex h-11 w-11 items-center justify-center rounded-full bg-ink text-[14px] font-semibold text-white">
+            <motion.button {...press(0.88, 0.9)} onClick={() => nav.push("/profile")} aria-label="Profile" className="press-own chrome-ring flex h-11 w-11 items-center justify-center rounded-full bg-ink text-[14px] font-semibold text-white">
               {me?.initials ?? ""}
             </motion.button>
           </div>
         </div>
-        <Reveal className="relative mt-7">
-          <motion.h1 variants={revealItem} className="t-hero">
+        {/* The greeting rises out of a mask, like a line of type being set. */}
+        <div className="relative mt-7 overflow-hidden pb-1">
+          <motion.h1 initial={{ y: intro ? "105%" : 12, opacity: intro ? 1 : 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: intro ? 0.8 : 0.35, ease: IOS, delay: at(0.12) }} className="t-hero">
             Salaam, {me?.name.split(" ")[0] ?? ""}.
           </motion.h1>
-          <motion.p variants={revealItem} className="t-body mt-2 max-w-[300px] text-ink-2">
-            {summaryLine(data)}
-          </motion.p>
-        </Reveal>
+        </div>
+        <motion.div initial={{ opacity: 0, y: 10, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: "spring", stiffness: 300, damping: 28, delay: at(0.32) }} className="relative mt-4">
+          <DebtsButton data={data} onClick={() => nav.push("/balances")} />
+        </motion.div>
       </header>
 
       {/* Add Outing: the focal point (Fitts + isolation effect) */}
-      <div className="px-4 pt-5">
-        <AddOutingHero onClick={() => nav.push("/o/new")} />
-        <button onClick={() => setPaste(true)} className="t-label mx-auto mt-4 flex items-center gap-2 text-[15px] text-ink-2 transition-colors hover:text-blue">
-          <Link2 size={16} /> Have an invite link? Paste to join
-        </button>
+      <div className="px-4 pt-5" style={{ perspective: 900 }}>
+        <motion.div
+          initial={intro ? { opacity: 0, y: 40, rotateX: 22, scale: 0.94 } : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
+          transition={{ type: "spring", stiffness: 170, damping: 22, delay: at(0.4) }}
+          style={{ transformOrigin: "50% 100%" }}
+        >
+          <AddOutingHero onClick={() => nav.push("/o/new")} intro={intro} />
+        </motion.div>
+        <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: at(0.62) }} onClick={() => setPaste(true)} className="t-label mx-auto mt-4 flex items-center gap-2 text-[15px] text-ink-2">
+          <Link2 size={16} /> Join with an invite link
+        </motion.button>
       </div>
 
-      <section className="px-4 pt-7">
-        <div className="mb-3 flex items-end justify-between px-1">
-          <h2 className="t-h2 text-[26px]">My outings</h2>
-          <span className="t-caption text-ink-2">
-            {data ? `${data.counts.active} active · ${data.counts.settled} settled` : ""}
-          </span>
-        </div>
+      <section className="px-4 pt-7" style={{ perspective: 1000 }}>
+        <motion.h2 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: IOS, delay: at(0.66) }} className="t-h2 mb-3 px-1 text-[26px]">
+          My outings
+        </motion.h2>
 
         {isLoading && (
           <div className="flex flex-col gap-4">
@@ -128,27 +146,25 @@ export default function Home() {
           {outings.map((o, i) => (
             <motion.article
               key={o.id}
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.06, type: "spring", stiffness: 260, damping: 26 }}
-              whileHover={{ y: -3 }}
+              // Intro: cards fly up and tip forward into place one after another, like a deck being dealt.
+              initial={intro ? { opacity: 0, y: 70, rotateX: 28, scale: 0.94 } : { opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
+              transition={intro ? { type: "spring", stiffness: 160, damping: 22, delay: 0.72 + i * 0.09 } : { delay: i * 0.05, type: "spring", stiffness: 320, damping: 32, mass: 0.8 }}
+              style={{ transformOrigin: "50% 0%" }}
               className="surface relative overflow-hidden"
             >
-              <button className="block w-full text-left" onClick={() => nav.push(`/o/${o.id}`)} aria-label={`Open ${o.name}`}>
+              <motion.button {...press(0.975, 0.97)} className={`${press().className} block w-full text-left`} onClick={() => nav.push(`/o/${o.id}`)} aria-label={`Open ${o.name}`}>
                 <div className="relative h-[124px] p-2">
-                  <Banner banner={o.banner} className="h-full rounded-[18px]" compact vtName={`banner-${o.id}`} sticker={o.receipts ? <Sticker color="pink" rotate={-5}>{o.receipts} receipt{o.receipts > 1 ? "s" : ""}</Sticker> : undefined} />
+                  <Banner banner={o.banner} className="h-full rounded-[18px]" compact vtName={`banner-${o.id}`} />
                   <div className="absolute -bottom-7 left-5">
                     <Logo type={o.logoType} value={o.logoValue} name={o.name} size={60} vtName={`logo-${o.id}`} />
                   </div>
                 </div>
                 <div className="px-5 pb-4 pt-9">
-                  <p className="t-overline text-ink-2">
-                    Outing {String(o.seq).padStart(3, "0")}
-                    {o.isSample && <span className="ml-2 rounded-full bg-pink-tint px-1.5 py-0.5 text-pink-text">Sample</span>}
-                    {o.status === "archived" && <span className="ml-2 rounded-full bg-paper-warm px-1.5 py-0.5">Archived</span>}
-                  </p>
-                  <h3 className="t-card mt-1" style={vt(`title-${o.id}`)}>
+                  <h3 className="t-card flex items-center gap-2" style={vt(`title-${o.id}`)}>
                     {o.name}
+                    {o.isSample && <span className="t-chip rounded-full bg-pink-tint px-2 py-0.5 font-[family-name:var(--font-ui)] text-pink-text">Sample</span>}
+                    {o.status === "archived" && <span className="t-chip rounded-full bg-paper-warm px-2 py-0.5 font-[family-name:var(--font-ui)] text-ink-2">Archived</span>}
                   </h3>
                   <p className="t-caption mt-1 text-ink-2">{[o.date, o.place, `by ${o.organizerName}`].filter(Boolean).join(" · ")}</p>
                   <div className="mt-3 flex items-end justify-between gap-3">
@@ -156,7 +172,7 @@ export default function Home() {
                     <MoneyLine money={o.money} />
                   </div>
                 </div>
-              </button>
+              </motion.button>
               <div className="absolute right-3 top-3">
                 <IconButton label={`More for ${o.name}`} surface="solid" onClick={() => setMenu(o)}>
                   <Ellipsis size={20} />
@@ -179,12 +195,11 @@ export default function Home() {
           <Button variant="danger" full onClick={() => menu && (setConfirm({ kind: "leave", o: menu }), setMenu(null))}>
             Leave outing
           </Button>
-          <p className="t-caption mt-1 text-ink-2">Only the organizer can rename or archive.</p>
         </div>
       </Sheet>
 
       <Sheet open={!!rename} onClose={() => setRename(null)} title="Rename outing" footer={<Button full loading={busy} onClick={() => rename && act(() => api(`/api/outings/${rename.o.id}`, "PATCH", { name: rename.name }), "Renamed")}>Save</Button>}>
-        {rename && <TextField label="Outing name" value={rename.name} onChange={(v) => setRename({ ...rename, name: v })} maxLength={40} helper={`${rename.name.length}/40 · empty restores Outing ${String(rename.o.seq).padStart(3, "0")}`} autoFocus />}
+        {rename && <TextField label="Outing name" value={rename.name} onChange={(v) => setRename({ ...rename, name: v })} maxLength={40} autoFocus />}
       </Sheet>
 
       <ConfirmSheet
@@ -235,7 +250,7 @@ function MoneyLine({ money }: { money: Outing["money"] }) {
 }
 
 /** 358 × 120 tappable hero. The 3D star tilts with the pointer / device. */
-function AddOutingHero({ onClick }: { onClick: () => void }) {
+function AddOutingHero({ onClick, intro }: { onClick: () => void; intro?: boolean }) {
   const mx = useMotionValue(0);
   const my = useMotionValue(0);
   const rx = useSpring(useTransform(my, [-1, 1], [14, -14]), { stiffness: 150, damping: 14 });
@@ -244,8 +259,10 @@ function AddOutingHero({ onClick }: { onClick: () => void }) {
   return (
     <motion.button
       onClick={() => {
+        // No artificial delay: the star starts its spin and the page push begins on the same frame.
+        haptic();
         setSpin((s) => s + 1);
-        setTimeout(onClick, 220);
+        onClick();
       }}
       onPointerMove={(e) => {
         const r = e.currentTarget.getBoundingClientRect();
@@ -253,8 +270,8 @@ function AddOutingHero({ onClick }: { onClick: () => void }) {
         my.set(((e.clientY - r.top) / r.height) * 2 - 1);
       }}
       onPointerLeave={() => (mx.set(0), my.set(0))}
-      whileTap={{ scale: 0.97 }}
-      className="gloss-blue relative flex h-[124px] w-full items-center gap-4 overflow-visible rounded-[30px] px-5 text-left text-white"
+      {...press(0.97, 0.93)}
+      className="press-own gloss-blue relative flex h-[104px] w-full items-center gap-4 overflow-visible rounded-[30px] px-5 text-left text-white"
       style={{ perspective: 600, ...vt("add-outing") }}
     >
       <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-[28px]">
@@ -263,37 +280,61 @@ function AddOutingHero({ onClick }: { onClick: () => void }) {
       <span className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-white/50 bg-white/15">
         <Plus size={30} strokeWidth={2} />
       </span>
-      <span className="relative min-w-0 flex-1">
-        <span className="block text-[26px] font-bold leading-tight">Add Outing</span>
-        <span className="t-ui block text-[15px] text-white/85">Start a split. We’ll name it for you.</span>
-      </span>
+      <span className="relative block min-w-0 flex-1 text-[26px] font-bold leading-tight">Add Outing</span>
       <motion.img
         src="/assets/star3d-cut.png"
         alt=""
         aria-hidden
         style={{ rotateX: rx, rotateY: ry }}
-        animate={{ rotate: spin * 360 }}
-        transition={{ rotate: { type: "spring", stiffness: 80, damping: 12 } }}
+        initial={intro ? { y: -70, scale: 0.4, opacity: 0, rotate: -140 } : false}
+        animate={{ y: 0, scale: 1, opacity: 1, rotate: spin * 360 }}
+        transition={{ rotate: { type: "spring", stiffness: 80, damping: 12, delay: intro && !spin ? 0.62 : 0 }, default: { type: "spring", stiffness: 160, damping: 13, delay: intro ? 0.62 : 0 } }}
         className="pointer-events-none absolute -right-2 -top-7 w-[104px] drop-shadow-[0_14px_18px_rgba(17,17,20,0.3)]"
       />
-      <span className="absolute -bottom-3 right-3">
-        <Sticker color="lime" rotate={-8}>
-          new ✦
-        </Sticker>
-      </span>
     </motion.button>
   );
 }
 
-/** A calm, specific one-liner instead of a dashboard: what matters right now. */
-function summaryLine(data: HomeData | undefined): string {
-  if (!data) return " ";
-  if (!data.outings.length) return "Split your next outing in a minute: receipts in, a short story, done.";
-  const owed = data.outings.reduce((a, o) => a + o.money.owed, 0);
-  const owe = data.outings.reduce((a, o) => a + o.money.owe, 0);
-  if (owe > 0 && owed > 0) return `You owe ${formatPKR(owe)} and you’re owed ${formatPKR(owed)}.`;
-  if (owe > 0) return `You owe ${formatPKR(owe)} across your outings.`;
-  if (owed > 0) return `You’re owed ${formatPKR(owed)} across your outings.`;
-  const drafts = data.outings.filter((o) => !o.money.published).length;
-  return drafts ? `${drafts} outing${drafts > 1 ? "s" : ""} waiting to be split.` : "All square. Sab clear.";
+/** Opens Balances. Shows a small status dot so the button carries meaning without printing amounts on Home. */
+function DebtsButton({ data, onClick }: { data: HomeData | undefined; onClick: () => void }) {
+  const owe = data?.outings.reduce((a, o) => a + o.money.owe, 0) ?? 0;
+  const owed = data?.outings.reduce((a, o) => a + o.money.owed, 0) ?? 0;
+  const tone = owe > 0 ? "bg-pink" : owed > 0 ? "bg-lime" : null;
+  return (
+    <motion.button {...press(0.96, 0.95)} onClick={onClick} className="press-own glass-solid inline-flex h-12 items-center gap-3 rounded-full pl-1.5 pr-4">
+      <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-ink text-white">
+        <Wallet size={17} />
+        {tone && <span className={`absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full ring-2 ring-white ${tone}`} aria-hidden />}
+      </span>
+      <span className="t-label text-[15px]">See your debts</span>
+      <ChevronRight size={17} className="-ml-1 text-ink-3" />
+    </motion.button>
+  );
+}
+
+/** Opening assembly only: a few small coloured dots pop in around the star, drift, then fade away. */
+function FloatingDots({ intro }: { intro: boolean }) {
+  if (!intro) return null;
+  const dots = [
+    { c: "#c6f432", s: 10, x: "78%", y: 92, d: 0.18 },
+    { c: "#ff2e93", s: 7, x: "62%", y: 150, d: 0.26 },
+    { c: "#1f3bff", s: 6, x: "88%", y: 176, d: 0.34 },
+    { c: "#c9b8ff", s: 12, x: "70%", y: 206, d: 0.42 },
+  ];
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0">
+      {dots.map((d, i) => (
+        <motion.span
+          key={i}
+          className="absolute block"
+          style={{ left: d.x, top: d.y }}
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: [0, 1, 1, 0.6], opacity: [0, 1, 1, 0] }}
+          transition={{ duration: 2.6, times: [0, 0.18, 0.7, 1], ease: "easeOut", delay: d.d }}
+        >
+          <span className="block animate-float rounded-full" style={{ width: d.s, height: d.s, background: d.c, animationDelay: `${i * -1.4}s` }} />
+        </motion.span>
+      ))}
+    </div>
+  );
 }

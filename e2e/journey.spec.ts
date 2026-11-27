@@ -43,7 +43,7 @@ test("organizer and friend complete a full outing", async ({ browser }) => {
   await page.getByRole("button", { name: /Add Outing/ }).click();
 
   // 03 · Create outing (zero typing)
-  await expect(page.getByText("Preview · auto-named")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue to invite" })).toBeVisible();
   await shot(page, "03-create");
   await page.getByRole("button", { name: "Rename" }).click();
   await page.getByLabel("Outing name").fill("Do Darya Night");
@@ -78,11 +78,14 @@ test("organizer and friend complete a full outing", async ({ browser }) => {
   await friend.getByLabel("Mobile number").fill(phone());
   await friend.getByRole("button", { name: "Send code" }).click();
   await friend.locator("text=Your code is").locator("button").click();
+  // New members are asked (optionally) how friends should pay them back; this friend skips it.
+  await expect(friend.getByText("How should friends pay you back?")).toBeVisible({ timeout: 30_000 });
+  await friend.getByRole("button", { name: "Skip for now" }).click();
   await expect(friend).toHaveURL(/\/o\/o_/, { timeout: 30_000 });
 
   // Live roster on the organizer's invite screen
   await expect(page.getByText("Talha Hussain")).toBeVisible({ timeout: 15_000 });
-  await page.getByRole("button", { name: /Done · go to the outing/ }).click();
+  await page.getByRole("button", { name: /Go to outing/ }).click();
 
   // 07 · Add evidence (real uploads)
   await page.getByRole("button", { name: "Add expense" }).click();
@@ -91,16 +94,16 @@ test("organizer and friend complete a full outing", async ({ browser }) => {
   await page.getByRole("button", { name: /Gallery/ }).click();
   await page.getByRole("button", { name: "I agree" }).click();
   await gallery.setInputFiles([path.join(SAMPLES, "kolachi-receipt-SAMPLE.jpg"), path.join(SAMPLES, "chai-paratha-receipt-SAMPLE.jpg")]);
-  await expect(page.getByText("Added · 2 sources")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Added · 2", { exact: true })).toBeVisible({ timeout: 30_000 });
   await page.locator('input[type=file][multiple]').nth(1).setInputFiles(path.join(SAMPLES, "careem-ride-SAMPLE.png"));
-  await expect(page.getByText("Added · 3 sources")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Added · 3", { exact: true })).toBeVisible({ timeout: 30_000 });
   // Pick a payer explicitly for one source
   await page.getByRole("button", { name: /Who paid\?/ }).first().click();
   await page.getByRole("button", { name: /Ayesha/ }).last().click();
   await shot(page, "07-evidence");
 
   // E2 · manual expense
-  await page.getByRole("button", { name: "Manual expense" }).click();
+  await page.getByRole("button", { name: "Add without a receipt" }).click();
   await page.getByLabel("What was it?").fill("Parking");
   await page.getByLabel("Amount").fill("200");
   await page.getByRole("button", { name: /Clear/ }).click();
@@ -137,7 +140,7 @@ test("organizer and friend complete a full outing", async ({ browser }) => {
 
   // Equal split shows its consequence; then back to Actual. Routing: opt into Optimized.
   await page.getByRole("radio", { name: /Equal split/ }).click();
-  await expect(page.getByText(/If you pick Equal/)).toBeVisible();
+  await expect(page.getByText(/Equal ignores what people actually had/)).toBeVisible();
   await page.getByRole("radio", { name: /Actual \/ individual/ }).click();
   await page.getByRole("radio", { name: /Optimized/ }).click();
   await expect(page.getByText("Optimized settlement")).toBeVisible();
@@ -164,7 +167,7 @@ test("organizer and friend complete a full outing", async ({ browser }) => {
   await expect(friend.getByText("Why do I owe this?")).toBeVisible();
   await shot(friend, "14-breakdown");
   await friend.getByRole("button", { name: /Pay Ayesha/ }).click();
-  await friend.getByRole("button", { name: /I paid Ayesha/ }).click();
+  await friend.getByRole("button", { name: /Already paid/ }).click();
   await friend.getByRole("button", { name: "Mark as paid" }).click();
   await expect(friend.getByText(/Marked Wusooled/).first()).toBeVisible();
 

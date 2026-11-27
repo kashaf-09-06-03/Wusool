@@ -2,10 +2,12 @@
 import { useEffect, useState } from "react";
 import useSWR from "swr";
 import { motion } from "motion/react";
-import { ChevronRight, Download, LogOut, MessageCircle, ShieldCheck, Trash } from "lucide-react";
+import { ChevronRight, Landmark, LogOut, MessageCircle, ShieldCheck, Trash } from "lucide-react";
 import { useSWRConfig } from "swr";
 import { Screen, useMe } from "@/components/shell";
-import { Avatar, Button, Chip, ConfirmSheet, Notice, Sheet, Skeleton, TextField, Toggle } from "@/components/ui";
+import { Avatar, Button, Chip, ConfirmSheet, Notice, press, Sheet, Skeleton, TextField, Toggle } from "@/components/ui";
+import { PayDetailsForm } from "@/components/PayDetailsForm";
+import { formatIban, hasPayDetails, type PayDetails } from "@/lib/payments";
 import { api, ApiError } from "@/lib/client/api";
 import { useNav } from "@/lib/client/nav";
 import { useToast } from "@/lib/client/toast";
@@ -18,6 +20,8 @@ export default function Profile() {
   const { data, mutate } = useSWR<ProfileData>(me ? "/api/me" : null);
   const { data: accounts } = useSWR<{ accounts: { id: string; name: string; phone: string; color: string; current: boolean }[] }>(me ? "/api/auth/accounts" : null);
   const { mutate: globalMutate } = useSWRConfig();
+  const { data: pay, mutate: refreshPay } = useSWR<{ details: PayDetails }>(me ? "/api/me/payment" : null);
+  const [editPay, setEditPay] = useState(false);
   const nav = useNav();
   const toast = useToast();
   const [consent, setConsent] = useState(false);
@@ -72,7 +76,7 @@ export default function Profile() {
           <Avatar initials={u.initials} color={u.color} size={64} />
           <div>
             <h1 className="t-card">{u.name}</h1>
-            <p className="t-caption text-ink-2">{u.phone} · never shown to others</p>
+            <p className="t-caption text-ink-2">{u.phone}</p>
           </div>
         </div>
       </div>
@@ -81,16 +85,15 @@ export default function Profile() {
         {/* H1 · WhatsApp notifications */}
         <section className="rounded-[24px] border border-line p-4">
           <h2 className="t-h3">Notifications</h2>
-          <p className="t-caption mt-0.5 text-ink-2">Everything always arrives in your Wusool inbox.</p>
           <Toggle
             checked={p.whatsappEnabled}
             label="WhatsApp notifications"
-            description={p.whatsappEnabled ? `On since ${p.consentAt ? new Date(p.consentAt).toLocaleDateString("en-PK", { day: "numeric", month: "short" }) : "—"}. Applies to future messages.` : "Off. Turn on to also get messages on WhatsApp."}
+            description={p.whatsappEnabled ? `On since ${p.consentAt ? new Date(p.consentAt).toLocaleDateString("en-PK", { day: "numeric", month: "short" }) : "—"}` : "Everything still arrives in-app."}
             onChange={(v) => (v ? (setAgree(false), setConsent(true)) : patch({ whatsappEnabled: false }, "WhatsApp off. In-app continues."))}
           />
           {p.whatsappEnabled && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-1 border-t border-line pt-1">
-              <p className="t-overline mt-2 text-ink-2">Send me on WhatsApp</p>
+              <p className="t-label mt-3 text-[14px] text-ink-2">Send me on WhatsApp</p>
               <Toggle checked={p.breakdown} label="Breakdowns" onChange={(v) => patch({ types: { breakdown: v } })} />
               <Toggle checked={p.request} label="Payment requests" onChange={(v) => patch({ types: { request: v } })} />
               <Toggle checked={p.reminder} label="Reminders" onChange={(v) => patch({ types: { reminder: v } })} />
@@ -100,26 +103,50 @@ export default function Profile() {
           <button onClick={() => nav.push("/wa")} className="mt-2 flex w-full items-center gap-3 rounded-[16px] bg-paper-warm p-3 text-left">
             <MessageCircle size={20} className="text-[#25D366]" />
             <span className="min-w-0 flex-1">
-              <span className="t-label block text-[15px]">WhatsApp simulator</span>
-              <span className="t-caption text-ink-2">What would be sent to you, with working Wusool/Maaf buttons. Nothing is sent to WhatsApp.</span>
+              <span className="t-label block text-[15px]">WhatsApp preview</span>
+              <span className="t-caption text-ink-2">Simulated. Nothing is sent.</span>
             </span>
             <ChevronRight size={18} />
           </button>
         </section>
 
+        {/* Get paid: Raast ID / IBAN shown on pay pages to people who owe you */}
+        <section className="rounded-[24px] border border-line p-4">
+          <h2 className="t-h3">Get paid</h2>
+          {hasPayDetails(pay?.details) ? (
+            <motion.button {...press(0.985, 0.97)} onClick={() => setEditPay(true)} className="press-own mt-3 flex w-full items-center gap-3 rounded-[16px] bg-paper-warm p-3 text-left">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink text-white">
+                <Landmark size={18} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="t-label block truncate text-[15px]">{pay!.details.raast ? `Raast ${pay!.details.raast}` : formatIban(pay!.details.iban!)}</span>
+                <span className="t-caption block truncate text-ink-2">{[pay!.details.title, pay!.details.bank, pay!.details.raast && pay!.details.iban ? "IBAN added" : null].filter(Boolean).join(" · ") || "Tap to edit"}</span>
+              </span>
+              <ChevronRight size={18} />
+            </motion.button>
+          ) : (
+            <>
+              <p className="t-caption mt-0.5 text-ink-2">Add a Raast ID or IBAN so friends can pay you from any bank app.</p>
+              <Button size="M" full className="mt-3" icon={<Landmark size={17} />} onClick={() => setEditPay(true)}>
+                Add payment details
+              </Button>
+            </>
+          )}
+        </section>
+
         {/* J1 · Small-debt threshold */}
         <section id="threshold" className="rounded-[24px] border border-line p-4">
           <h2 className="t-h3">Small-debt threshold</h2>
-          <p className="t-caption mt-0.5 text-ink-2">Balances owed to you below this show a quick Wusool or Maaf card. Larger debts stay collectible normally.</p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <p className="t-caption mt-0.5 text-ink-2">Below this, you get a quick Wusool or Maaf choice.</p>
+          <div className="mt-3 grid grid-cols-3 gap-2">
             {[50, 100, 200].map((v) => (
-              <Chip key={v} selected={u.threshold === v * 100} onClick={() => saveThreshold(String(v))}>
+              <Chip key={v} className="justify-center px-2" selected={u.threshold === v * 100} onClick={() => saveThreshold(String(v))}>
                 {formatPKR(v * 100)}
               </Chip>
             ))}
           </div>
           <div className="mt-3">
-            <TextField label="Custom amount" prefix="PKR" value={threshold} onChange={setThreshold} inputMode="decimal" error={thErr} helper="Between PKR 0 and PKR 5,000" onEnter={() => saveThreshold(threshold)} />
+            <TextField label="Custom amount" prefix="PKR" value={threshold} onChange={setThreshold} inputMode="decimal" error={thErr} onEnter={() => saveThreshold(threshold)} />
             <Button size="S" variant="outline" className="mt-2" onClick={() => saveThreshold(threshold)}>
               Save
             </Button>
@@ -140,9 +167,6 @@ export default function Profile() {
           </div>
           <Toggle checked={u.hideItems} onChange={(v) => patch({ hideItems: v }, "Saved")} label="Hide my individual items from others" description="Others see totals and who to pay, not what you ordered." />
           <div className="mt-2 flex flex-col gap-2">
-            <Button variant="outline" size="M" icon={<Download size={17} />} disabled>
-              Export my data (coming later)
-            </Button>
             <Button variant="danger" size="M" icon={<Trash size={17} />} onClick={() => setDel(true)}>
               Delete account
             </Button>
@@ -152,7 +176,6 @@ export default function Profile() {
         {/* Several people on one device, for testing invites and Wusool/Maaf without WhatsApp */}
         <section className="surface p-5">
           <h2 className="t-h3">Accounts on this device</h2>
-          <p className="t-caption mt-0.5 text-ink-2">Test with friends on one laptop: add a second person, open your invite link as them, then switch back here.</p>
           <ul className="mt-3 flex flex-col gap-1">
             {(accounts?.accounts ?? []).map((a) => (
               <li key={a.id} className="flex items-center gap-3 py-2">
@@ -186,11 +209,12 @@ export default function Profile() {
         </section>
 
         {/* Honest capability labelling */}
-        <section className="rounded-[24px] bg-paper-warm p-4">
-          <h2 className="t-label flex items-center gap-2">
-            <ShieldCheck size={18} className="text-blue" /> What’s real in this prototype
-          </h2>
-          <ul className="t-caption mt-2 flex flex-col gap-1.5">
+        <details className="group rounded-[24px] bg-paper-warm p-4">
+          <summary className="t-label flex cursor-pointer list-none items-center gap-2">
+            <ShieldCheck size={18} className="text-blue" /> <span className="flex-1">About this prototype</span>
+            <ChevronRight size={18} className="transition-transform duration-300 group-open:rotate-90" />
+          </summary>
+          <ul className="t-caption mt-3 flex flex-col gap-1.5">
             <li>
               <b>Calculations:</b> real, deterministic, integer-paisa ledger with tests.
             </li>
@@ -210,7 +234,7 @@ export default function Profile() {
               <b>SMS codes:</b> not connected; codes are shown on screen.
             </li>
           </ul>
-        </section>
+        </details>
 
         <Button
           variant="outline"
@@ -225,6 +249,10 @@ export default function Profile() {
           Sign out
         </Button>
       </div>
+
+      <Sheet open={editPay} onClose={() => setEditPay(false)} title="How friends pay you" subtitle="Only people who owe you see this." tall>
+        {editPay && <PayDetailsForm initial={pay?.details} name={u.name} maskedPhone={u.phone} onSaved={() => (setEditPay(false), refreshPay(), toast("Saved"))} />}
+      </Sheet>
 
       {/* H1 consent sheet: deliberate, explained, revocable */}
       <Sheet

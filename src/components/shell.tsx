@@ -1,6 +1,6 @@
 "use client";
-import { Suspense, useEffect, type ReactNode } from "react";
-import { MotionConfig, motion, useScroll, useTransform } from "motion/react";
+import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
+import { AnimatePresence, MotionConfig, motion, useMotionValueEvent, useScroll, useTransform } from "motion/react";
 import { SWRConfig } from "swr";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -71,7 +71,7 @@ export function TopBar({ title, back, close, right, onBack, transparent, collaps
 /** Large editorial page title that hands off to the TopBar when scrolled (pair with <TopBar collapse/>). */
 export function PageTitle({ children, sub, className }: { children: ReactNode; sub?: ReactNode; className?: string }) {
   return (
-    <motion.div initial={{ opacity: 0, y: 14, filter: "blur(6px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ type: "spring", stiffness: 240, damping: 26 }} className={clsx("px-5 pb-2", className)}>
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 320, damping: 32, mass: 0.8 }} className={clsx("px-5 pb-2", className)}>
       <h1 className="t-title">{children}</h1>
       {sub && <p className="t-body-s mt-2 text-ink-2">{sub}</p>}
     </motion.div>
@@ -85,28 +85,88 @@ const TABS = [
   { href: "/profile", label: "Profile", icon: User },
 ];
 
-/** Floating liquid-glass tab bar. The active pill slides with a spring and wears a chrome edge. */
+/**
+ * Dark liquid-glass tab bar. Icon-only pill; the active tab sits on a lighter glass lens that slides between
+ * icons. Scrolling down morphs the pill into a single round button (more room for content, iOS 26 style);
+ * scrolling up or tapping it expands it again.
+ */
+/** The bar rises in once per app launch, not on every page (pages remount it on each navigation). */
+let tabBarShown = false;
+
 export function TabBar() {
+  const [rise] = useState(() => !tabBarShown);
+  useEffect(() => {
+    tabBarShown = true;
+  }, []);
   const path = usePathname();
   const { data } = useSWR<{ unread: number }>("/api/home", { refreshInterval: 15000 });
   const active = TABS.find((t) => (t.href === "/" ? path === "/" || path.startsWith("/o/") : path.startsWith(t.href)))?.href;
+  const [collapsed, setCollapsed] = useState(false);
+  const { scrollY } = useScroll();
+  const last = useRef(0);
+  useMotionValueEvent(scrollY, "change", (y) => {
+    const dy = y - last.current;
+    if (Math.abs(dy) < 6) return;
+    last.current = y;
+    if (y < 80) setCollapsed(false);
+    else setCollapsed(dy > 0);
+  });
+  const ActiveIcon = TABS.find((t) => t.href === active)?.icon ?? House;
+  const nav = useNav();
+  const spring = { type: "spring" as const, stiffness: 380, damping: 34, mass: 0.9 };
   return (
-    <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-4 pb-[max(14px,env(safe-area-inset-bottom))]">
-      <motion.div initial={{ y: 90, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: "spring", stiffness: 260, damping: 28, delay: 0.1 }} className="glass flex w-full max-w-[358px] items-center justify-between rounded-full p-1.5">
-        {TABS.map((t) => {
-          const on = active === t.href;
-          const Icon = t.icon;
-          return (
-            <Link key={t.href} href={t.href} className="relative flex h-[56px] flex-1 flex-col items-center justify-center gap-0.5 rounded-full" aria-current={on ? "page" : undefined}>
-              {on && <motion.span layoutId="tab-pill" className="chrome-ring absolute inset-0 rounded-full bg-paper shadow-[0_6px_16px_-8px_rgba(31,59,255,0.55)]" transition={{ type: "spring", stiffness: 480, damping: 34 }} />}
-              <motion.span className="relative" animate={on ? { scale: [1, 1.22, 1], rotate: [0, -8, 0] } : { scale: 1 }} transition={{ duration: 0.45 }}>
-                <Icon size={21} className={on ? "text-blue" : "text-ink-2"} strokeWidth={on ? 2.4 : 1.9} />
-                {t.href === "/inbox" && (data?.unread ?? 0) > 0 && <span className="absolute -right-1.5 -top-1 h-2.5 w-2.5 rounded-full bg-pink ring-2 ring-white" aria-label={`${data!.unread} unread`} />}
-              </motion.span>
-              <span className={clsx("relative text-[11.5px] font-medium tracking-[-0.005em]", on ? "font-semibold text-blue" : "text-ink-2")}>{t.label}</span>
-            </Link>
-          );
-        })}
+    <nav aria-label="Main" style={{ viewTransitionName: "tabbar" }} className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-4 pb-[max(16px,env(safe-area-inset-bottom))]">
+      <motion.div
+        layout
+        transition={spring}
+        initial={rise ? { y: 90, opacity: 0 } : false}
+        animate={{ y: 0, opacity: 1 }}
+        style={{ borderRadius: 999 }}
+        className="glass-dark pointer-events-auto flex items-center overflow-hidden p-1.5"
+      >
+        <AnimatePresence mode="popLayout" initial={false}>
+          {collapsed ? (
+            <motion.button
+              key="collapsed"
+              layout="position"
+              initial={{ opacity: 0, scale: 0.6 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.6 }}
+              transition={spring}
+              onClick={() => setCollapsed(false)}
+              aria-label="Show tabs"
+              className="press-own relative flex h-[50px] w-[50px] items-center justify-center rounded-full text-white"
+            >
+              <ActiveIcon size={21} strokeWidth={2} />
+            </motion.button>
+          ) : (
+            <motion.div key="tabs" layout="position" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="flex items-center gap-1">
+              {TABS.map((t) => {
+                const on = active === t.href;
+                const Icon = t.icon;
+                return (
+                  <Link
+                    key={t.href}
+                    href={t.href}
+                    onClick={(e) => {
+                      // Route through the transition system: slide toward the tab you picked.
+                      if (e.metaKey || e.ctrlKey || e.shiftKey || on) return on && e.preventDefault();
+                      e.preventDefault();
+                      const from = TABS.findIndex((x) => x.href === active);
+                      nav.tab(t.href, TABS.indexOf(t) > from ? "tab-right" : "tab-left");
+                    }}
+                    aria-label={t.label} title={t.label} aria-current={on ? "page" : undefined} className="press-own relative flex h-[50px] w-[62px] items-center justify-center rounded-full">
+                    {on && <motion.span layoutId="tab-lens" className="glass-lens absolute inset-0 rounded-full" transition={spring} />}
+                    <motion.span className="relative" initial={false} animate={on ? { scale: [0.84, 1.08, 1] } : { scale: 1 }} transition={{ duration: 0.42, ease: [0.32, 0.72, 0, 1] }}>
+                      <Icon size={22} strokeWidth={on ? 2.2 : 1.8} className={on ? "text-white" : "text-white/60"} />
+                      {t.href === "/inbox" && (data?.unread ?? 0) > 0 && <span className="absolute -right-1.5 -top-1 h-2.5 w-2.5 rounded-full bg-pink ring-2 ring-[#2a2a31]" aria-label={`${data!.unread} unread`} />}
+                    </motion.span>
+                  </Link>
+                );
+              })}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </nav>
   );

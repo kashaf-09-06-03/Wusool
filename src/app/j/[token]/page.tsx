@@ -2,12 +2,14 @@
 import { use, useEffect, useState } from "react";
 import useSWR from "swr";
 import { AnimatePresence, motion } from "motion/react";
-import { Clock, Lock, Smartphone } from "lucide-react";
+import { Clock, Lock } from "lucide-react";
 import { Screen } from "@/components/shell";
-import { Button, Notice, Skeleton, Sticker, TextField } from "@/components/ui";
+import { Button, Notice, Skeleton, TextField } from "@/components/ui";
+import { PayDetailsForm } from "@/components/PayDetailsForm";
+import { hasPayDetails, type PayDetails } from "@/lib/payments";
 import { OutingHeader } from "@/components/OutingHeader";
 import { PhoneVerify } from "@/components/PhoneVerify";
-import { api, ApiError } from "@/lib/client/api";
+import { api, ApiError, fetcher } from "@/lib/client/api";
 import { useNav } from "@/lib/client/nav";
 import { useToast } from "@/lib/client/toast";
 import type { InvitePreview } from "@/lib/client/types";
@@ -21,7 +23,8 @@ export default function Join({ params }: { params: Promise<{ token: string }> })
   const nav = useNav();
   const toast = useToast();
   const [name, setName] = useState("");
-  const [step, setStep] = useState<"name" | "verify" | "claim" | "pending" | "declined">("name");
+  const [step, setStep] = useState<"name" | "verify" | "claim" | "pending" | "declined" | "pay">("name");
+  const [payFor, setPayFor] = useState<{ outingId: string; phone: string; name: string } | null>(null);
   const [claim, setClaim] = useState<{ id: string; name: string; addedBy: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -47,7 +50,12 @@ export default function Join({ params }: { params: Promise<{ token: string }> })
       const r = await api<JoinResult>(`/api/invite/${token}`, "POST", { name, ...opts });
       if (r.state === "joined" || r.state === "already") {
         toast(r.state === "joined" ? "You’re in!" : "You’re already in this outing");
-        nav.replace(`/o/${r.outingId}`);
+        // First time in? Ask (optionally) how friends should pay them back, then go to the outing.
+        const [pay, me] = await Promise.all([(fetcher("/api/me/payment") as Promise<{ details: PayDetails }>).catch(() => null), (fetcher("/api/me") as Promise<{ user: { phone: string; name: string } | null }>).catch(() => null)]);
+        if (r.state === "joined" && pay && !hasPayDetails(pay.details) && me?.user) {
+          setPayFor({ outingId: r.outingId, phone: me.user.phone, name: me.user.name });
+          setStep("pay");
+        } else nav.replace(`/o/${r.outingId}`);
       } else if (r.state === "pending") setStep("pending");
       else if (r.state === "claim") (setClaim(r.guest), setStep("claim"));
       else if (r.state === "name_taken") {
@@ -111,12 +119,6 @@ export default function Join({ params }: { params: Promise<{ token: string }> })
             outing={{ ...data.outing, isSample: false }}
             members={data.outing.memberInitials}
             memberCount={data.outing.memberCount}
-            sticker={<Sticker color="lime">you’re invited ✦</Sticker>}
-            topLeft={
-              <span className="glass-solid inline-flex h-7 items-center gap-1.5 rounded-full px-3 t-overline text-[10px]">
-                <Smartphone size={12} /> Mobile browser · no install
-              </span>
-            }
           />
           <div className="px-5 pb-10 pt-6">
             <AnimatePresence mode="wait">
@@ -132,7 +134,7 @@ export default function Join({ params }: { params: Promise<{ token: string }> })
                   <Button full onClick={onJoin} loading={busy} className="h-14">
                     Join outing
                   </Button>
-                  <p className="t-caption text-ink-2">{data.viewer ? `Signed in as ${data.viewer.name}.` : "Next: a one-time code to your phone (prototype: code shown on screen). Your number is never shown to other members."}</p>
+                  <p className="t-caption text-ink-2">{data.viewer ? `Signed in as ${data.viewer.name}.` : "Next, a one-time code to your phone. Your number stays private."}</p>
                   <button className="t-label text-[15px] text-blue" onClick={() => nav.push("/")}>
                     Not you, or wrong outing?
                   </button>
@@ -163,6 +165,25 @@ export default function Join({ params }: { params: Promise<{ token: string }> })
                   </motion.span>
                   <p className="t-h3">Waiting for {data.outing.organizerName.split(" ")[0]} to approve</p>
                   <p className="t-body-s text-ink-2">They’ve been notified. This page updates by itself.</p>
+                </motion.div>
+              )}
+              {step === "pay" && payFor && (
+                <motion.div key="pay" initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="flex flex-col gap-4">
+                  <div>
+                    <p className="t-h3">How should friends pay you back?</p>
+                    <p className="t-caption mt-1 text-ink-2">Only people who owe you see this, on their pay page.</p>
+                  </div>
+                  <PayDetailsForm
+                    name={payFor.name}
+                    maskedPhone={payFor.phone}
+                    submitLabel="Save and open the outing"
+                    onSaved={() => (toast("Saved. Friends can pay you in one tap."), nav.replace(`/o/${payFor.outingId}`))}
+                    secondary={
+                      <Button variant="text" size="M" full onClick={() => nav.replace(`/o/${payFor.outingId}`)}>
+                        Skip for now
+                      </Button>
+                    }
+                  />
                 </motion.div>
               )}
               {step === "declined" && (

@@ -5,8 +5,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { BellOff, Link2 } from "lucide-react";
 import { useSWRConfig } from "swr";
 import { Screen } from "@/components/shell";
-import { Button, Sticker, TextField } from "@/components/ui";
-import { Doodle } from "@/components/collage";
+import { Button, TextField } from "@/components/ui";
+import { Constellation } from "@/components/fx";
 import { PhoneVerify } from "@/components/PhoneVerify";
 import { api } from "@/lib/client/api";
 import { useNav } from "@/lib/client/nav";
@@ -41,35 +41,22 @@ export default function Welcome() {
           {step === "welcome" && (
             <motion.div key="w" className="flex flex-1 flex-col" exit={{ opacity: 0, y: -20 }}>
               <div className="relative flex flex-1 flex-col items-center justify-center text-center">
-                <motion.img
-                  src="/assets/star3d-cut.png"
-                  alt=""
-                  initial={{ scale: 0.2, rotate: -120, opacity: 0 }}
-                  animate={{ scale: 1, rotate: 0, opacity: 1, y: [0, -10, 0] }}
-                  transition={{ scale: { type: "spring", stiffness: 160, damping: 14 }, rotate: { type: "spring", stiffness: 120, damping: 12 }, y: { repeat: Infinity, duration: 4, ease: "easeInOut", delay: 1 } }}
-                  className="w-44 drop-shadow-[0_24px_30px_rgba(31,59,255,0.25)]"
-                />
-                <motion.h1 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="t-hero mt-6 text-[56px]">
+                <Constellation />
+                <motion.h1 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.75, type: "spring", stiffness: 260, damping: 30 }} className="t-hero mt-4 text-[56px]">
                   Wusool
                 </motion.h1>
-                <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.45 }} className="t-body mt-2 max-w-[300px] text-ink-2">
-                  Tell Wusool what happened. Receipts and a short story in, a fair split out.
+                <motion.p initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9, type: "spring", stiffness: 260, damping: 30 }} className="t-body mt-2 max-w-[290px] text-ink-2">
+                  Tell it what happened. Receipts and a short story in, a fair split out.
                 </motion.p>
-                <motion.div initial={{ scale: 0, rotate: -30 }} animate={{ scale: 1, rotate: -6 }} transition={{ delay: 0.7, type: "spring", stiffness: 300, damping: 14 }} className="mt-6">
-                  <Sticker color="lime">tap. join. split. Maaf if it’s tiny ✦</Sticker>
-                </motion.div>
-                <Doodle kind="squiggle" draw className="absolute left-2 top-10 h-8 w-24 text-pink" />
-                <Doodle kind="spark" color="#c6f432" className="absolute right-6 top-24 h-8 w-8" />
-                <Doodle kind="burst" className="absolute bottom-24 left-8 h-8 w-8 text-blue" />
               </div>
-              <div className="flex flex-col gap-2">
+              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.05, type: "spring", stiffness: 260, damping: 30 }} className="flex flex-col gap-2">
                 <Button full onClick={() => setStep("auth")}>
                   Get started
                 </Button>
                 <Button variant="text" size="M" full icon={<Link2 size={18} />} onClick={() => setStep("paste")}>
-                  Have an invite link? Paste to join
+                  Join with an invite link
                 </Button>
-              </div>
+              </motion.div>
             </motion.div>
           )}
           {step === "paste" && (
@@ -94,9 +81,8 @@ export default function Welcome() {
                   </>
                 ) : (
                   <>
-                    <p className="t-overline text-ink-2">Step 1 of 2</p>
-                    <h1 className="t-title mt-1">Who are you?</h1>
-                    <p className="t-body-s mt-2 text-ink-2">Your name is what friends see. Your phone is only for signing in.</p>
+                    <h1 className="t-title">Who are you?</h1>
+                    <p className="t-body-s mt-2 text-ink-2">Friends see your name. Your number is only for signing in.</p>
                   </>
                 )}
               </div>
@@ -110,21 +96,13 @@ export default function Welcome() {
           )}
           {step === "notifs" && (
             <motion.div key="n" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} className="flex flex-1 flex-col gap-6 pt-6">
-              <div>
-                <p className="t-overline text-ink-2">Step 2 of 2</p>
-                <h1 className="t-title mt-1">You’re in. One thing about messages.</h1>
-              </div>
+              <h1 className="t-title">You’re in.</h1>
               <div className="rounded-[24px] bg-paper-warm p-5">
                 <div className="flex items-center gap-3">
                   <span className="flex h-12 w-12 items-center justify-center rounded-full bg-paper"><BellOff size={22} /></span>
-                  <div>
-                    <p className="t-label">WhatsApp notifications: OFF</p>
-                    <p className="t-caption text-ink-2">That’s the default for everyone.</p>
-                  </div>
+                  <p className="t-label">WhatsApp notifications: OFF</p>
                 </div>
-                <p className="t-body-s mt-4">
-                  You’ll always see breakdowns and requests here in Wusool. If you want them on WhatsApp too, turn it on yourself any time in <b>Profile → Notifications</b>. Sharing an invite link never turns it on.
-                </p>
+                <p className="t-body-s mt-4 text-ink-2">Everything arrives here in Wusool. Turn on WhatsApp any time in Profile.</p>
               </div>
               <div className="mt-auto">
                 <Button full onClick={finish}>

@@ -24,11 +24,8 @@
   --color-lilac: #c9b8ff;
   --color-kraft: #c9a77a;
 
-  --font-display: var(--font-newsreader), "Newsreader", Georgia, serif;
-  --font-body: var(--font-gelasio), "Gelasio", Georgia, serif;
+  --font-display: var(--font-bodoni), "Bodoni Moda", "Didot", Georgia, serif;
   --font-ui: var(--font-franklin), "Libre Franklin", system-ui, sans-serif;
-  --font-sticker: var(--font-bagel), "Bagel Fat One", system-ui, sans-serif;
-  --font-hand: var(--font-caveat), "Caveat", cursive;
 
   --radius-sm: 8px;
   --radius-md: 16px;
@@ -36,6 +33,8 @@
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* UIKit's navigation/sheet curve: quick start, long soft settle. */
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
 
   --animate-sheen: sheen 1.1s var(--ease-out-expo);
   --animate-breathe: breathe 1.6s ease-in-out infinite;
@@ -72,25 +71,26 @@ body {
 ::selection { background: var(--color-lime); color: var(--color-ink); }
 
 /* Type ramp (Figma text styles, tightened for an editorial feel) */
-.t-hero { font-family: var(--font-display); font-style: italic; font-weight: 500; font-size: 46px; line-height: 0.98; letter-spacing: -0.025em; }
-.t-title { font-family: var(--font-display); font-style: italic; font-weight: 500; font-size: 34px; line-height: 1.02; letter-spacing: -0.02em; }
-.t-card { font-family: var(--font-display); font-style: italic; font-weight: 500; font-size: 24px; line-height: 1.08; letter-spacing: -0.012em; }
-.t-h2 { font-family: var(--font-display); font-weight: 500; font-size: 25px; line-height: 1.15; letter-spacing: -0.01em; }
-.t-h3 { font-family: var(--font-display); font-weight: 500; font-size: 20px; line-height: 1.2; letter-spacing: -0.005em; }
+/* Display serif: upright, tight, a little heavier at small sizes so hairlines survive on phone screens. */
+.t-hero { font-family: var(--font-display); font-weight: 500; font-size: 44px; line-height: 1.02; letter-spacing: -0.012em; }
+.t-title { font-family: var(--font-display); font-weight: 600; font-size: 32px; line-height: 1.08; letter-spacing: -0.008em; }
+.t-card { font-family: var(--font-display); font-weight: 600; font-size: 23px; line-height: 1.12; letter-spacing: -0.004em; }
+.t-h2 { font-family: var(--font-display); font-weight: 600; font-size: 24px; line-height: 1.15; letter-spacing: -0.004em; }
+.t-h3 { font-family: var(--font-display); font-weight: 600; font-size: 19px; line-height: 1.2; letter-spacing: 0; }
 .t-body { font-family: var(--font-ui); font-size: 16px; line-height: 1.55; }
 .t-body-s { font-family: var(--font-ui); font-size: 14.5px; line-height: 1.5; }
-.t-body-i { font-family: var(--font-display); font-style: italic; font-size: 17px; line-height: 1.4; }
+.t-body-i { font-family: var(--font-display); font-size: 17px; line-height: 1.4; }
 .t-label { font-family: var(--font-ui); font-weight: 600; font-size: 15px; line-height: 1.3; letter-spacing: -0.005em; }
 .t-ui { font-family: var(--font-ui); font-size: 15px; line-height: 1.4; }
 .t-caption { font-family: var(--font-ui); font-size: 13px; line-height: 1.4; }
-.t-overline { font-family: var(--font-ui); font-weight: 700; font-size: 11px; line-height: 1.2; letter-spacing: 0.08em; text-transform: uppercase; }
+/* Small section label: sentence case, medium weight (no tracked-out caps). */
+.t-overline { font-family: var(--font-ui); font-weight: 600; font-size: 12.5px; line-height: 1.3; letter-spacing: -0.005em; }
 .t-chip { font-family: var(--font-ui); font-weight: 600; font-size: 13px; line-height: 1.2; }
 .t-amount-xl { font-family: var(--font-ui); font-weight: 600; font-size: 42px; line-height: 1.05; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
 .t-amount-l { font-family: var(--font-ui); font-weight: 600; font-size: 26px; line-height: 1.1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .t-amount-m { font-family: var(--font-ui); font-weight: 600; font-size: 16px; line-height: 1.25; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
 .t-amount-s { font-family: var(--font-ui); font-weight: 500; font-size: 13px; line-height: 1.25; font-variant-numeric: tabular-nums; }
-.t-sticker { font-family: var(--font-sticker); font-size: 16px; line-height: 1.1; }
-.t-hand { font-family: var(--font-hand); font-weight: 700; font-size: 22px; line-height: 1.05; }
+.t-sticker { font-family: var(--font-ui); font-weight: 700; font-size: 14px; line-height: 1.1; letter-spacing: -0.01em; }
 .tabular { font-variant-numeric: tabular-nums; }
 
 /* Chrome — the Y2K accent. Decorative only, never on amounts. */
@@ -127,6 +127,43 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.9);
   box-shadow: 0 6px 18px -8px rgba(17, 17, 20, 0.25);
 }
+/* Dark liquid glass (tab bar): smoked, saturated, with a bright top rim so it reads as glass, not a dark slab. */
+.glass-dark {
+  background: linear-gradient(180deg, rgba(44, 44, 52, 0.72), rgba(20, 20, 26, 0.78));
+  backdrop-filter: blur(24px) saturate(1.9);
+  -webkit-backdrop-filter: blur(24px) saturate(1.9);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(0, 0, 0, 0.3), 0 16px 36px -12px rgba(17, 17, 20, 0.55), 0 2px 6px rgba(17, 17, 20, 0.18);
+}
+/* The lighter lens that marks the active tab on dark glass. */
+.glass-lens {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.1));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 4px 12px -4px rgba(0, 0, 0, 0.5);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass-dark { background: #1c1c22; backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+
+/* "Thinking…" text: a soft highlight sweeps across the letters. */
+.shimmer-text {
+  background: linear-gradient(90deg, var(--color-ink-3) 0%, var(--color-ink-3) 35%, var(--color-ink) 50%, var(--color-ink-3) 65%, var(--color-ink-3) 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer-sweep 1.6s linear infinite;
+}
+@keyframes shimmer-sweep { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+
+/* Clear glass capsule (toggle knob): mostly transparent so the track shows through, bright rim, soft lens shading. */
+.glass-knob {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.22));
+  backdrop-filter: blur(3px) saturate(2) brightness(1.08);
+  -webkit-backdrop-filter: blur(3px) saturate(2) brightness(1.08);
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.95), inset 0 -2px 4px rgba(17, 17, 20, 0.1), 0 3px 8px -2px rgba(17, 17, 20, 0.28), 0 0 0 0.5px rgba(17, 17, 20, 0.12);
+}
 .surface { background: var(--color-paper); border-radius: 24px; box-shadow: var(--elev-1); }
 .hairline { border-color: rgba(17, 17, 20, 0.08); }
 
@@ -154,22 +191,63 @@ body {
 :focus-visible { outline: 3px solid var(--color-blue); outline-offset: 2px; border-radius: 12px; }
 
 /* ---- Page transitions (View Transitions API) ----
-   Forward: new page slides in from the right over the old one, which recedes (iOS push).
-   Back: the reverse. Shared elements (banner, logo, title) morph between pages. */
-::view-transition-old(root), ::view-transition-new(root) { animation-duration: 420ms; animation-timing-function: var(--ease-out-expo); }
+   Modelled on UINavigationController: the new page slides in over the old one, which drifts a third of
+   the way left and dims (it doesn't fade or shrink). Back is the exact reverse. Shared elements (banner,
+   logo, title) morph between pages on the same curve. */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 480ms; animation-timing-function: var(--ease-ios); }
 html[data-nav="forward"]::view-transition-old(root) { animation-name: vt-recede; }
 html[data-nav="forward"]::view-transition-new(root) { animation-name: vt-push-in; }
 html[data-nav="back"]::view-transition-old(root) { animation-name: vt-pop-out; z-index: 2; }
 html[data-nav="back"]::view-transition-new(root) { animation-name: vt-return; }
-html[data-nav="replace"]::view-transition-old(root) { animation-name: vt-fade-out; }
-html[data-nav="replace"]::view-transition-new(root) { animation-name: vt-fade-in; }
-@keyframes vt-push-in { from { transform: translateX(100%); box-shadow: -30px 0 60px rgba(17, 17, 20, 0.18); } to { transform: translateX(0); } }
-@keyframes vt-recede { to { transform: translateX(-24%) scale(0.98); opacity: 0.6; filter: brightness(0.92); } }
-@keyframes vt-pop-out { to { transform: translateX(100%); } }
-@keyframes vt-return { from { transform: translateX(-24%) scale(0.98); opacity: 0.6; filter: brightness(0.92); } }
-@keyframes vt-fade-out { to { opacity: 0; transform: scale(0.985); filter: blur(3px); } }
-@keyframes vt-fade-in { from { opacity: 0; transform: scale(1.015); } }
-::view-transition-group(*) { animation-duration: 520ms; animation-timing-function: var(--ease-out-expo); }
+html[data-nav="replace"]::view-transition-old(root) { animation-name: vt-fade-out; animation-duration: 260ms; }
+html[data-nav="replace"]::view-transition-new(root) { animation-name: vt-fade-in; animation-duration: 360ms; }
+@keyframes vt-push-in { from { transform: translateX(100%); box-shadow: -18px 0 40px rgba(17, 17, 20, 0.14); } to { transform: translateX(0); box-shadow: -18px 0 40px rgba(17, 17, 20, 0); } }
+@keyframes vt-recede { to { transform: translateX(-30%); filter: brightness(0.9); } }
+@keyframes vt-pop-out { from { box-shadow: -18px 0 40px rgba(17, 17, 20, 0.14); } to { transform: translateX(100%); box-shadow: -18px 0 40px rgba(17, 17, 20, 0); } }
+@keyframes vt-return { from { transform: translateX(-30%); filter: brightness(0.9); } }
+@keyframes vt-fade-out { to { opacity: 0; } }
+@keyframes vt-fade-in { from { opacity: 0; transform: scale(0.99); } }
+::view-transition-group(*) { animation-duration: 480ms; animation-timing-function: var(--ease-ios); }
+
+/* Tab switches: a short sideways slide with a crossfade, in the direction of the tab you picked. */
+html[data-nav="tab-right"]::view-transition-old(root) { animation: vt-tab-out-left 320ms var(--ease-ios) both; }
+html[data-nav="tab-right"]::view-transition-new(root) { animation: vt-tab-in-right 420ms var(--ease-ios) both; }
+html[data-nav="tab-left"]::view-transition-old(root) { animation: vt-tab-out-right 320ms var(--ease-ios) both; }
+html[data-nav="tab-left"]::view-transition-new(root) { animation: vt-tab-in-left 420ms var(--ease-ios) both; }
+@keyframes vt-tab-out-left { to { transform: translateX(-8%); opacity: 0; } }
+@keyframes vt-tab-out-right { to { transform: translateX(8%); opacity: 0; } }
+@keyframes vt-tab-in-right { from { transform: translateX(12%); opacity: 0; } }
+@keyframes vt-tab-in-left { from { transform: translateX(-12%); opacity: 0; } }
+/* The tab bar is its own layer, so it holds still while pages move underneath it. */
+::view-transition-group(tabbar) { animation-duration: 0s; }
+::view-transition-old(tabbar) { display: none; }
+::view-transition-new(tabbar) { animation: none; }
+
+/* Entrance fallback: when the next page arrives too late for a View Transition (or the browser has none),
+   its content animates in as it lands, so navigation never just "pops". The tab bar is excluded. */
+html[data-enter="forward"] main > :not(nav) { animation: enter-forward 480ms var(--ease-ios) both; }
+html[data-enter="back"] main > :not(nav) { animation: enter-back 480ms var(--ease-ios) both; }
+html[data-enter="replace"] main > :not(nav) { animation: enter-fade 360ms var(--ease-ios) both; }
+html[data-enter="tab-right"] main > :not(nav) { animation: vt-tab-in-right 420ms var(--ease-ios) both; }
+html[data-enter="tab-left"] main > :not(nav) { animation: vt-tab-in-left 420ms var(--ease-ios) both; }
+@keyframes enter-forward { from { transform: translateX(34%); opacity: 0; } }
+@keyframes enter-back { from { transform: translateX(-24%); opacity: 0; } }
+@keyframes enter-fade { from { opacity: 0; transform: scale(0.985); } }
+
+/* ---- Press feedback ----
+   One press feel everywhere, like UIKit: press-in is instant (80 ms) and slightly dims, release eases
+   back slowly. Components with their own spring press (Button, IconButton, Chip…) carry .press-own and
+   are skipped here so the two never stack. */
+:where(button, a, [role="button"], label[for]):not(:disabled):not(.press-own) {
+  transition-property: transform, opacity, background-color, color, box-shadow;
+  transition-duration: 420ms;
+  transition-timing-function: var(--ease-ios);
+}
+:where(button, a, [role="button"]):not(:disabled):not(.press-own):active {
+  transform: scale(0.97);
+  opacity: 0.72;
+  transition-duration: 80ms;
+}
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }

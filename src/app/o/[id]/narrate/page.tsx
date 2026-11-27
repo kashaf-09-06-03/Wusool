@@ -1,11 +1,11 @@
 "use client";
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
-import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "motion/react";
-import { Keyboard, Mic, Pencil, RotateCcw, Sparkles, Square } from "lucide-react";
+import { AnimatePresence, motion, useMotionValue, useSpring, useTransform, type MotionValue } from "motion/react";
+import { Mic, Pencil, RotateCcw, Sparkles, Square } from "lucide-react";
 import clsx from "clsx";
 import { Fab, PageTitle, Screen, TopBar, useMe } from "@/components/shell";
-import { Button, Notice, Segmented, StarSpinner } from "@/components/ui";
+import { Button, Notice, press, Segmented, StarSpinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/client/api";
 import { useNav } from "@/lib/client/nav";
 import { useToast } from "@/lib/client/toast";
@@ -25,7 +25,6 @@ type SR = {
   onerror: ((e: { error: string }) => void) | null;
   onend: (() => void) | null;
 };
-const ENGINE_LABEL = { gemini: "Gemini · high accuracy", openai: "OpenAI · high accuracy", browser: "Browser · basic" } as const;
 
 /** 08 · Tell the story (E3): voice or text; edit the transcript before Wusool reads it. */
 export default function Narrate({ params }: { params: Promise<{ id: string }> }) {
@@ -48,7 +47,6 @@ export default function Narrate({ params }: { params: Promise<{ id: string }> })
   const [lastEngine, setLastEngine] = useState<string | null>(null);
   const level = useMotionValue(0);
   const smooth = useSpring(level, { stiffness: 300, damping: 20 });
-  const ring1 = useTransform(smooth, [0, 1], [1, 1.55]);
   const ring2 = useTransform(smooth, [0, 1], [1, 1.95]);
   const recRef = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
@@ -231,7 +229,7 @@ export default function Narrate({ params }: { params: Promise<{ id: string }> })
   return (
     <Screen>
       <TopBar back={`/o/${id}/evidence`} title="Tell the story" collapse />
-      <PageTitle sub="Say it like you’d tell a friend: who paid, who had what, who rode with whom, and anything to split equally.">Tell the story</PageTitle>
+      <PageTitle sub="Who paid, who had what, who rode with whom.">Tell the story</PageTitle>
       <div className="flex flex-col gap-5 px-5 pb-6 pt-3">
         <div className="flex items-center justify-between gap-3">
           <div className="w-44">
@@ -255,55 +253,94 @@ export default function Narrate({ params }: { params: Promise<{ id: string }> })
 
         <AnimatePresence mode="wait">
           {mode === "voice" && (
-            <motion.div key="voice" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }} className="relative flex flex-col items-center overflow-hidden rounded-[28px] bg-ink px-5 pb-5 pt-8 text-white">
-              <div aria-hidden className="pointer-events-none absolute inset-0 opacity-60">
-                <span className="absolute -left-10 -top-16 h-48 w-48 rounded-full bg-blue blur-3xl" />
-                <span className="absolute -bottom-20 right-0 h-48 w-48 rounded-full bg-pink/70 blur-3xl" />
-              </div>
-              <div className="relative flex h-40 w-40 items-center justify-center">
-                <motion.span style={{ scale: ring2 }} className="absolute inset-6 rounded-full bg-white/[0.06]" />
-                <motion.span style={{ scale: ring1 }} className="absolute inset-6 rounded-full bg-white/[0.12]" />
-                <motion.button
-                  aria-label={recording ? "Stop recording" : "Start recording"}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => (recording ? stop() : start())}
-                  disabled={polishing}
-                  className={clsx("chrome-ring relative flex h-24 w-24 items-center justify-center rounded-full", recording ? "gloss-pink" : "gloss-blue")}
-                >
-                  <AnimatePresence mode="wait" initial={false}>
-                    {polishing ? (
-                      <motion.span key="p" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
-                        <StarSpinner size={34} light />
-                      </motion.span>
-                    ) : recording ? (
-                      <motion.span key="s" initial={{ scale: 0, rotate: -45 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0 }}>
-                        <Square size={28} fill="white" />
-                      </motion.span>
-                    ) : (
-                      <motion.span key="m" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
-                        <Mic size={34} />
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </motion.button>
-              </div>
-              <p className="relative mt-2 t-amount-m text-[20px] tabular">
-                {mm}:{ss}
-              </p>
-              <p className="relative mt-1 t-caption text-white/70">{polishing ? "Turning your voice into text…" : recording ? "Listening. Tap ■ when you’re done." : "Tap the mic and talk naturally"}</p>
-              <AnimatePresence>
-                {recording && live && (
-                  <motion.p initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="relative mt-3 line-clamp-2 text-center t-body-i text-white/85">
-                    “{live.slice(-140)}”
-                  </motion.p>
-                )}
-              </AnimatePresence>
-              <div className="relative mt-4 flex w-full items-center justify-between">
-                <span className="t-overline rounded-full bg-white/10 px-2.5 py-1 text-[9.5px] text-white/80">{ENGINE_LABEL[engine as keyof typeof ENGINE_LABEL]}</span>
-                <button aria-label="Start over" onClick={() => (stop(), setTranscript(""), setLive(""))} className="flex items-center gap-1.5 t-caption text-white/70">
-                  <RotateCcw size={14} /> Start over
+            <motion.div key="voice" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} className="relative">
+              {/* Soft colour field the glass sits on; it brightens while listening. */}
+              <motion.div
+                aria-hidden
+                className="pointer-events-none absolute -inset-x-6 -inset-y-8 -z-0"
+                animate={{ opacity: recording ? 1 : 0.65 }}
+                transition={{ duration: 0.6 }}
+              >
+                <span className="absolute left-[4%] top-0 h-40 w-48 rounded-full bg-[#9fb2ff] opacity-70 blur-3xl" />
+                <span className="absolute right-[2%] top-6 h-44 w-48 rounded-full bg-[#d7c2ff] opacity-80 blur-3xl" />
+                <span className="absolute bottom-0 left-1/3 h-28 w-40 rounded-full bg-[#ffc6e8] opacity-60 blur-3xl" />
+              </motion.div>
+
+              <motion.div layout transition={{ type: "spring", stiffness: 300, damping: 32, mass: 0.9 }} style={{ borderRadius: 28 }} className="glass relative overflow-hidden">
+                <motion.div layout="position" className="flex items-center gap-3 p-2.5 pl-4">
+                  <div className="min-w-0 flex-1">
+                    <AnimatePresence mode="popLayout" initial={false}>
+                      {polishing ? (
+                        <motion.p key="think" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="t-label shimmer-text text-[15px]">
+                          Thinking…
+                        </motion.p>
+                      ) : recording ? (
+                        <motion.div key="rec" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="flex items-center gap-3">
+                          <Waveform level={smooth} />
+                          <span className="t-amount-m tabular text-[15px] text-ink-2">
+                            {mm}:{ss}
+                          </span>
+                        </motion.div>
+                      ) : (
+                        <motion.p key="idle" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="t-label text-[15px] text-ink-2">
+                          {transcript.trim() ? "Tap to add more" : "Tap and tell it like you would a friend"}
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                  <motion.button
+                    aria-label={recording ? "Stop recording" : "Start recording"}
+                    {...press(0.88, 0.92)}
+                    onClick={() => (recording ? stop() : start())}
+                    disabled={polishing}
+                    className={clsx("press-own relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full", recording ? "gloss-pink text-white" : "glass-solid text-blue")}
+                  >
+                    {recording && <motion.span aria-hidden className="absolute inset-0 rounded-full bg-pink/40" style={{ scale: ring2 }} />}
+                    <AnimatePresence mode="wait" initial={false}>
+                      {polishing ? (
+                        <motion.span key="p" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="relative">
+                          <StarSpinner size={22} />
+                        </motion.span>
+                      ) : recording ? (
+                        <motion.span key="s" initial={{ scale: 0, rotate: -45 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0 }} className="relative">
+                          <Square size={16} fill="white" />
+                        </motion.span>
+                      ) : (
+                        <motion.span key="m" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="relative">
+                          <Mic size={21} strokeWidth={2.2} />
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </motion.button>
+                </motion.div>
+
+                {/* Expanded body: the words appear as you say them. */}
+                <AnimatePresence initial={false}>
+                  {(recording || polishing) && (
+                    <motion.div key="body" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ type: "spring", stiffness: 300, damping: 32 }} className="overflow-hidden">
+                      <div className="min-h-[92px] px-4 pb-4 pt-1">
+                        {live ? (
+                          <p className="t-body text-[16px] leading-relaxed text-ink">
+                            {live.slice(-220).split(" ").map((w, i, arr) => (
+                              <motion.span key={`${arr.length - i}-${w}`} initial={{ opacity: 0, filter: "blur(4px)" }} animate={{ opacity: 1, filter: "blur(0px)" }} transition={{ duration: 0.35 }}>
+                                {w}{" "}
+                              </motion.span>
+                            ))}
+                          </p>
+                        ) : (
+                          <p className="t-body text-[16px] text-ink-3">{polishing ? "Turning your voice into text" : "Listening…"}</p>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+
+              {transcript.trim() && !recording && !polishing && (
+                <button aria-label="Start over" onClick={() => (stop(), setTranscript(""), setLive(""))} className="t-caption relative mt-2 ml-auto flex items-center gap-1.5 px-1 text-ink-2">
+                  <RotateCcw size={13} /> Start over
                 </button>
-              </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -316,8 +353,7 @@ export default function Narrate({ params }: { params: Promise<{ id: string }> })
 
         <section>
           <div className="mb-2 flex items-center justify-between">
-            <p className="t-label">{mode === "voice" ? "Transcript · edit before Wusool reads it" : "Your story"}</p>
-            {lastEngine && mode === "voice" && <span className="t-caption text-ink-2">{ENGINE_LABEL[lastEngine as keyof typeof ENGINE_LABEL] ?? lastEngine}</span>}
+            <p className="t-label">{mode === "voice" ? "Transcript" : "Your story"}</p>
           </div>
           {editing || mode === "text" || !transcript ? (
             <textarea
@@ -344,7 +380,7 @@ export default function Narrate({ params }: { params: Promise<{ id: string }> })
               })}
             </div>
           )}
-          <p className="t-caption mt-2 text-ink-2">{uncertain.length ? `${uncertain.length} word${uncertain.length > 1 ? "s" : ""} we weren’t sure about ${uncertain.length > 1 ? "are" : "is"} underlined. Tap to fix, or edit anything.` : "Tap the text to edit anything before Wusool reads it."}</p>
+          {uncertain.length > 0 && <p className="t-caption mt-2 text-ink-2">Underlined words may be wrong. Tap one to fix it.</p>}
           <AnimatePresence>
             {fix && data && (
               <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="surface mt-2 p-3">
@@ -369,14 +405,29 @@ export default function Narrate({ params }: { params: Promise<{ id: string }> })
         <Button full icon={<Sparkles size={19} />} onClick={interpret} loading={busy} disabled={recording || polishing}>
           {transcript.trim() ? "Read my outing" : "Skip: read receipts only"}
         </Button>
-        {mode === "voice" && (
-          <Button variant="text" size="M" full className="mt-1" icon={<Keyboard size={17} />} onClick={() => (stop(), setMode("text"))}>
-            Switch to typing
-          </Button>
-        )}
       </Fab>
     </Screen>
   );
 }
 
 const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1) + (/[.!?]$/.test(s) ? "" : ".");
+
+/** Live waveform: each bar follows the real microphone level with its own gain, so speech looks like speech. */
+function Waveform({ level }: { level: MotionValue<number> }) {
+  const gains = [0.55, 0.9, 1.25, 0.8, 1.1, 0.6, 0.95];
+  return (
+    <span aria-hidden className="flex h-7 items-center gap-[3px]">
+      {gains.map((g, i) => (
+        <WaveBar key={i} level={level} gain={g} delay={i * 0.11} />
+      ))}
+    </span>
+  );
+}
+function WaveBar({ level, gain, delay }: { level: MotionValue<number>; gain: number; delay: number }) {
+  const scaleY = useTransform(level, (v) => Math.min(1, 0.22 + v * gain * 1.4));
+  return (
+    <motion.span style={{ scaleY }} className="block h-7 w-[3.5px] origin-center rounded-full bg-[linear-gradient(180deg,#7b8dff,#1f3bff)]">
+      <motion.span className="block h-full w-full rounded-full" animate={{ opacity: [0.75, 1, 0.75] }} transition={{ repeat: Infinity, duration: 1.2, delay }} />
+    </motion.span>
+  );
+}

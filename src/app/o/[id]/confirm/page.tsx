@@ -88,8 +88,8 @@ export default function Confirm({ params }: { params: Promise<{ id: string }> })
       <AnimatePresence>
         {stamp > 0 && (
           <motion.div className="pointer-events-none fixed inset-0 z-[85] flex items-center justify-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <motion.div initial={{ scale: 3, rotate: -30, opacity: 0 }} animate={{ scale: 1, rotate: -12, opacity: 1 }} transition={{ type: "spring", stiffness: 300, damping: 14 }} className="rounded-[20px] border-[5px] border-blue px-6 py-3 text-blue" style={{ fontFamily: "var(--font-sticker)", fontSize: 40 }}>
-              PUBLISHED ✓
+            <motion.div initial={{ scale: 3, rotate: -30, opacity: 0 }} animate={{ scale: 1, rotate: -12, opacity: 1 }} transition={{ type: "spring", stiffness: 300, damping: 14 }} className="rounded-[18px] border-[3px] border-blue bg-paper/90 px-6 py-2.5 text-blue backdrop-blur-sm" style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 40, letterSpacing: "-0.02em" }}>
+              Published
             </motion.div>
           </motion.div>
         )}
@@ -101,7 +101,6 @@ export default function Confirm({ params }: { params: Promise<{ id: string }> })
             <h1 className="t-card">{data.outing.name}</h1>
             <p className="t-caption text-ink-2">
               {data.expenses.length} expense{data.expenses.length === 1 ? "" : "s"} · {data.members.length} people · {formatPKR(p.grandTotal)}
-              {data.outing.isSample ? " (sample)" : ""}
             </p>
           </div>
         </div>
@@ -109,8 +108,7 @@ export default function Confirm({ params }: { params: Promise<{ id: string }> })
         <div className="overflow-hidden rounded-[20px] border-[1.5px] border-ink">
           <div className="flex items-center justify-between p-4">
             <div>
-              <p className="t-overline text-[10px] text-blue">1 · Who pays for what</p>
-              <p className="t-label mt-1 text-[17px]">{allocation === "equal" ? "Equal split" : "Actual / individual"}</p>
+              <p className="t-label text-[17px]">{allocation === "equal" ? "Equal split" : "Actual / individual"}</p>
               <p className="t-caption text-ink-2">{allocation === "equal" ? `Everyone pays ${formatPKR(p.equalShare)} of eligible expenses` : "Each person pays for what they had"}</p>
             </div>
             <button className="t-label text-blue" onClick={() => nav.push(`/o/${id}/review`)}>
@@ -119,8 +117,7 @@ export default function Confirm({ params }: { params: Promise<{ id: string }> })
           </div>
           <div className="flex items-center justify-between border-t border-line p-4">
             <div>
-              <p className="t-overline text-[10px] text-blue">2 · Who pays whom</p>
-              <p className="t-label mt-1 text-[17px]">
+              <p className="t-label text-[17px]">
                 {routing === "optimized" ? "Optimized" : "Original debts"} · {edges.length} transfer{edges.length === 1 ? "" : "s"}
               </p>
               <p className="t-caption text-ink-2">{routing === "optimized" ? "Net amounts unchanged for everyone" : "Pay back whoever paid for you"}</p>
@@ -203,8 +200,7 @@ export default function Confirm({ params }: { params: Promise<{ id: string }> })
         )}
 
         <Notice tone="blue" icon={<Bell size={18} className="text-blue" />}>
-          Each of the {data.members.length} members gets their own breakdown in-app, showing only their items. WhatsApp goes only to the {p.whatsappOptIns} member{p.whatsappOptIns === 1 ? "" : "s"} who turned it on (prototype: simulated in-app, nothing sent to WhatsApp).
-          {data.members.some((mm) => !mm.isUser) && " People added by hand see it once they join via the link."}
+          Everyone sees only their own breakdown, in-app. {p.whatsappOptIns > 0 ? `${p.whatsappOptIns} also get it on WhatsApp (simulated).` : "Nobody has WhatsApp turned on."}
         </Notice>
       </div>
       <Fab>

@@ -2,10 +2,10 @@
 import { useRef, useState } from "react";
 import useSWR from "swr";
 import { AnimatePresence, motion } from "motion/react";
-import { Calendar, Check, ChevronDown, Pencil, Upload, User } from "lucide-react";
+import { Calendar, Check, ChevronDown, Pencil, Upload } from "lucide-react";
 import clsx from "clsx";
 import { Screen, TopBar, useMe } from "@/components/shell";
-import { Button, Sticker, TextField } from "@/components/ui";
+import { Button, press, TextField } from "@/components/ui";
 import { BANNER_PRESETS, Banner, Logo } from "@/components/collage";
 import { api, ApiError, upload } from "@/lib/client/api";
 import { useNav } from "@/lib/client/nav";
@@ -88,7 +88,7 @@ export default function CreateOuting() {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={bannerFile.url} alt="" className="h-[150px] w-full rounded-[18px] object-cover" />
                 ) : (
-                  <Banner banner={banner} className="h-[150px] rounded-[18px]" interactive sticker={<Sticker color="lime">yours ✦</Sticker>} />
+                  <Banner banner={banner} className="h-[150px] rounded-[18px]" interactive />
                 )}
               </motion.div>
             </AnimatePresence>
@@ -102,8 +102,7 @@ export default function CreateOuting() {
             </motion.div>
           </div>
           <div className="px-5 pb-5 pt-11">
-            <p className="t-overline text-ink-2">Preview · {name?.trim() ? "your name" : "auto-named"}</p>
-            <div className="relative mt-1 flex items-center gap-2">
+            <div className="relative flex items-center gap-2">
               {editing ? (
                 <input
                   autoFocus
@@ -119,18 +118,12 @@ export default function CreateOuting() {
               ) : (
                 <>
                   <h1 className="t-title whitespace-nowrap">{shown}</h1>
-                  <motion.button whileTap={{ scale: 0.88 }} aria-label="Rename" onClick={() => setEditing(true)} className="flex h-11 w-11 items-center justify-center rounded-full bg-paper-warm">
+                  <motion.button {...press(0.88, 0.9)} aria-label="Rename" onClick={() => setEditing(true)} className="press-own flex h-11 w-11 items-center justify-center rounded-full bg-paper-warm">
                     <Pencil size={17} />
                   </motion.button>
-                  {!name && (
-                    <motion.span initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: [0, -4, 0] }} transition={{ x: { repeat: Infinity, duration: 1.6 } }} className="t-hand min-w-0 whitespace-nowrap text-[18px] text-pink-text">
-                      ← tap to rename
-                    </motion.span>
-                  )}
                 </>
               )}
             </div>
-            {editing && <p className="t-caption mt-1 text-ink-2">{(name ?? autoName).length}/40 · leave empty to keep {autoName}</p>}
             <button onClick={() => setShowMeta((s) => !s)} className="t-ui mt-3 flex items-center gap-2 text-[14px] text-ink-2">
               <Calendar size={15} /> {date || place ? [date, place].filter(Boolean).join(" · ") : "Add date & place (optional)"}
               <ChevronDown size={15} className={clsx("transition-transform", showMeta && "rotate-180")} />
@@ -145,18 +138,11 @@ export default function CreateOuting() {
                 </motion.div>
               )}
             </AnimatePresence>
-            <p className="t-ui mt-1.5 flex items-center gap-2 text-[14px] text-ink-2">
-              <User size={15} /> You’re the organizer
-            </p>
-            <p className="t-label mt-2 text-[14px]">Just you so far · invite next</p>
           </div>
         </motion.div>
 
         {/* Banner presets (5 options, no nested menus — Hick) */}
-        <div className="mt-6 flex items-baseline justify-between">
-          <h2 className="t-h3">Banner</h2>
-          <span className="t-caption text-ink-2">Presets · upload · or skip</span>
-        </div>
+        <h2 className="t-h3 mt-6">Banner</h2>
         <div className="mt-3 grid grid-cols-5 gap-2.5" role="radiogroup" aria-label="Banner">
           {BANNER_PRESETS.map((b) => (
             <Thumb key={b.id} selected={banner === b.id} onClick={() => setBanner(b.id)} label={b.label}>
@@ -174,20 +160,17 @@ export default function CreateOuting() {
           <input ref={bannerInput} type="file" accept="image/*" hidden onChange={pick("banner")} />
         </div>
 
-        <div className="mt-6 flex items-baseline justify-between">
-          <h2 className="t-h3">Logo</h2>
-          <span className="t-caption text-ink-2">3D · initial · sticker · upload</span>
-        </div>
+        <h2 className="t-h3 mt-6">Logo</h2>
         <div className="mt-3 flex justify-between" role="radiogroup" aria-label="Logo">
           {LOGOS.map((l) => (
             <motion.button
               key={l}
-              whileTap={{ scale: 0.9 }}
+              {...press(0.9, 0.95)}
               role="radio"
               aria-checked={logo === l}
               aria-label={{ cup3d: "Chai 3D", star3d: "Star 3D", initial: "Initial", sticker: "Sticker", upload: "Upload logo" }[l]}
               onClick={() => (l === "upload" ? logoInput.current?.click() : setLogo(l))}
-              className={clsx("relative rounded-full p-[3px] transition-shadow", logo === l ? "ring-[3px] ring-ink" : "ring-0")}
+              className={clsx("press-own relative rounded-full p-[3px] transition-shadow duration-300", logo === l ? "ring-[3px] ring-ink" : "ring-0")}
             >
               {l === "upload" && logoFile ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -220,12 +203,12 @@ export default function CreateOuting() {
 function Thumb({ selected, onClick, children, label, dashed }: { selected: boolean; onClick: () => void; children: React.ReactNode; label: string; dashed?: boolean }) {
   return (
     <motion.button
-      whileTap={{ scale: 0.92 }}
+      {...press(0.92, 0.95)}
       onClick={onClick}
       role="radio"
       aria-checked={selected}
       aria-label={label}
-      className={clsx("relative flex aspect-square items-center justify-center overflow-hidden rounded-[14px] bg-paper-warm", selected ? "ring-[3px] ring-ink" : dashed ? "border-2 border-dashed border-line-strong" : "border border-line")}
+      className={clsx("press-own relative flex aspect-square items-center justify-center overflow-hidden rounded-[14px] bg-paper-warm", selected ? "ring-[3px] ring-ink" : dashed ? "border-2 border-dashed border-line-strong" : "border border-line")}
     >
       {children}
       <AnimatePresence>

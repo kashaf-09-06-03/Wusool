@@ -157,7 +157,7 @@ export async function extractReceiptWithGemini(image: Buffer, mime: string, hint
     "receipt",
     [
       { inline_data: { mime_type: mime, data: image.toString("base64") } },
-      { text: `Labelled by the uploader as: ${hint}. Extract every purchased line item (not token/table/invoice/NTN/cashier/payment-method lines), every printed tax/service/fee/discount line, the subtotal and the total. Copy amounts exactly as printed; never compute or guess digits — mark unclear lines legible=false and explain in notes.` },
+      { text: `Labelled by the uploader as: ${hint}. Extract every purchased line item (not token/table/invoice/NTN/cashier/payment-method lines), every printed tax/service/fee/discount line, the subtotal and the total. Copy amounts exactly as printed; never compute or guess digits — mark unclear lines legible=false and explain in notes. For a ride screenshot, return the fare as one item named after the trip.` },
     ],
     { schema: RECEIPT_SCHEMA, system: "You transcribe Pakistani restaurant receipts and ride-hailing screenshots (Careem, Uber, inDrive, Bykea, Yango) into structured data. Amounts are in PKR." },
   );
@@ -247,6 +247,7 @@ Use only the member ids, expense ids and item ids provided. Fact types:
 - "item": a person had a specific line item (itemId). One fact per item; a sentence like "Ayesha had the pasta and the Americano" gives two.
 - "rest": someone had "whatever was left" of an expense.
 - "payer": who paid an existing expense; put the payer(s) in payerIds. "X ne pay kiya/ki", "X ne bill diya", "X paid for the biryani" and "Ali ne Careem kiya" mean X PAID (a "payer" fact), not that X ate it.
+- "X got the chai for her, Ayesha and Talha" / "X ne sab ke liye liya" means X PAID for it: give a "payer" fact for X AND a "participants" fact for everyone named (including X when "her/him/me" is said).
 - "participants": who shared a whole expense, in memberIds. "Sara aur Hamza uske saath thay" (with him) includes the person "uske" refers to.
 - "split": splitMode "equal" when they say an expense should be split equally/evenly; "itemised" when they want it by what each person had (including "taxes according to what we got").
 - "newExpense": an expense the story mentions that has no matching expense (e.g. a ride with an amount). If the story mentions an expense that already exists (same kind or amount), refer to that expense instead of creating a new one. payerIds must be empty when the payer isn't stated (e.g. "it cost us 1000"). memberIds = who shared it ("together"/"all of us" = everyone).
@@ -263,6 +264,28 @@ Story:
 """${transcript}"""`;
 }
 
+/** "didn't return the change" → no; "returned the change" → yes; otherwise unknown (null). */
+function changeStatus(sentence: string): "yes" | "no" | null {
+  const t = sentence.toLowerCase();
+  if (/\b(didn'?t|did not|never|forgot to|forgot|kept|nahi)\b[^.]*\b(return|back|change|wapas)\b|\bkept the change\b|wapas nahi/.test(t)) return "no";
+  if (/\b(returned|gave back|wapas (kiye|diye|kar))\b/.test(t)) return "yes";
+  return null;
+}
+
+/** Members whose first (or full) name appears as a whole word in the sentence. */
+function namedIn(sentence: string, ctx: NarrativeContext): string[] {
+  const t = ` ${sentence.toLowerCase()} `;
+  return ctx.members
+    .filter((m) => {
+      const full = m.name.toLowerCase();
+      const first = full.split(/\s+/)[0];
+      const escape = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, (c) => `\\${c}`);
+      const re = (w: string) => new RegExp(`[^a-z]${escape(w)}[^a-z]`);
+      return re(full).test(t) || (first.length >= 3 && re(first).test(t));
+    })
+    .map((m) => m.id);
+}
+
 /** Convert flat model output to validated facts that only reference real ids. */
 export function factsFromFlat(flat: FlatFactT[], ctx: NarrativeContext): Fact[] {
   const memberIds = new Set(ctx.members.map((m) => m.id));
@@ -273,11 +296,39 @@ export function factsFromFlat(flat: FlatFactT[], ctx: NarrativeContext): Fact[] 
     // Small models sometimes omit an amount that is written right in the sentence ("ko 1500 diye"); take it from
     // the sentence only when exactly one number is there, so we never pick between amounts.
     const nums = raw.sentence.match(/\d[\d,]*(?:\.\d+)?/g) ?? [];
-    const f = raw.type === "handoff" && !raw.amountPKR && nums.length === 1 ? { ...raw, amountPKR: nums[0] } : raw;
+    let f = raw.type === "handoff" && !raw.amountPKR && nums.length === 1 ? { ...raw, amountPKR: nums[0] } : raw;
+    // "Mariam forgot to return the change" (sent as a note, or as an incomplete second handoff) updates the
+    // latest handoff, the same way the rule-based interpreter does.
+    const change = changeStatus(f.sentence);
+    const incompleteHandoff = f.type === "handoff" && !(f.amountPKR && f.fromId && (f.viaId || f.toId));
+    if (change && (f.type !== "handoff" || incompleteHandoff) && /\b(change|baqi|balance|wapas)\b/i.test(f.sentence)) {
+      const prior = [...out].reverse().find((x): x is Extract<Fact, { type: "handoff" }> => x.type === "handoff");
+      if (prior) {
+        prior.changeReturned = change;
+        continue;
+      }
+    }
+    if (f.type === "handoff") {
+      // The final recipient is often left out of toId even when the sentence names them ("Talha gave Mariam
+      // 1500 to pay Ayesha"). Use memberIds, else the names in the sentence, but only when exactly one other
+      // member fits, so we never guess between people.
+      if (!f.toId && f.fromId && f.viaId) {
+        const exclude = new Set([f.fromId, f.viaId]);
+        let others = [...new Set(keep(f.memberIds))].filter((x) => !exclude.has(x));
+        if (others.length !== 1) others = namedIn(f.sentence, ctx).filter((x) => !exclude.has(x));
+        if (others.length === 1) f = { ...f, toId: others[0] };
+      }
+      if (!f.changeReturned || f.changeReturned === "unknown") {
+        const c = changeStatus(f.sentence);
+        if (c) f = { ...f, changeReturned: c };
+      }
+    }
     const base = { sentence: f.sentence, confidence: f.confidence };
     const e = f.expenseId ? expById.get(f.expenseId) : undefined;
     // Models put payers in payerIds (the field's name) as often as in memberIds; accept either.
-    const people = f.type === "payer" ? [...new Set(keep([...f.payerIds, ...f.memberIds]))] : keep(f.memberIds);
+    // (Only fall back to memberIds when payerIds is empty: some outputs list the payer in payerIds and the
+    // people who shared it in memberIds, and those people did not pay.)
+    const people = f.type === "payer" ? (keep(f.payerIds).length ? [...new Set(keep(f.payerIds))] : keep(f.memberIds)) : keep(f.memberIds);
     if ((f.type === "payer" || f.type === "participants") && e && people.length) out.push({ type: f.type, expenseId: e.id, memberIds: people, uncertainIds: keep(f.uncertainMemberIds), ...base });
     else if (f.type === "item" && e && f.itemId && e.items.some((i) => i.id === f.itemId) && keep(f.memberIds).length)
       out.push({ type: "item", expenseId: e.id, itemId: f.itemId, memberIds: keep(f.memberIds), uncertainIds: keep(f.uncertainMemberIds), ...base });

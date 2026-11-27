@@ -1,6 +1,6 @@
 "use client";
 import { use, useEffect, useMemo, useState } from "react";
-import useSWR from "swr";
+import useSWR, { mutate as globalMutate } from "swr";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, CircleAlert, Plus, ScanLine, Trash } from "lucide-react";
 import clsx from "clsx";
@@ -109,6 +109,9 @@ function ManualExpense({ data }: { data: OutingData }) {
         participants: sharers.map((m) => ({ memberId: m, value: mode === "equal" ? 1 : mode === "exact" ? (parsePKR(values[m] ?? "") ?? 0) : Number(values[m] ?? 0) || 0 })),
       });
       toast(`${title} saved`);
+      // Refresh the outing before leaving: the evidence screen shares this cache and would otherwise show the
+      // list from before the save (SWR skips refetching data it loaded a moment ago).
+      await globalMutate(`/api/outings/${id}`);
       nav.push(`/o/${id}/evidence`);
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : "Couldn’t save");
@@ -273,6 +276,7 @@ function ExpenseEditor({ data, exp, onSaved }: { data: OutingData; exp: ExpenseD
       });
       toast("Saved. Re-validated.");
       onSaved();
+      await globalMutate(`/api/outings/${id}`);
       nav.back();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : "Couldn’t save", "error");

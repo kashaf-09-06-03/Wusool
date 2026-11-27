@@ -1,15 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Bagel_Fat_One, Caveat, Gelasio, Instrument_Serif, Libre_Baskerville, Libre_Franklin, Newsreader } from "next/font/google";
+import { Bodoni_Moda, Libre_Franklin } from "next/font/google";
 import { Providers } from "@/components/shell";
 import "./globals.css";
 
-const newsreader = Newsreader({ subsets: ["latin"], weight: ["500"], style: ["normal", "italic"], variable: "--font-newsreader", display: "swap" });
-const gelasio = Gelasio({ subsets: ["latin"], weight: ["400"], style: ["normal", "italic"], variable: "--font-gelasio", display: "swap" });
+// Headlines: Bodoni Moda (high-contrast magazine serif, optical sizes so 20px and 56px both stay crisp).
+// Everything else: Libre Franklin (the Franklin Gothic family newspapers pair with their serif).
+const bodoni = Bodoni_Moda({ subsets: ["latin"], axes: ["opsz"], style: ["normal"], variable: "--font-bodoni", display: "swap" });
 const franklin = Libre_Franklin({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-franklin", display: "swap" });
-const bagel = Bagel_Fat_One({ subsets: ["latin"], weight: ["400"], variable: "--font-bagel", display: "swap" });
-const caveat = Caveat({ subsets: ["latin"], weight: ["700"], variable: "--font-caveat", display: "swap" });
-const instrument = Instrument_Serif({ subsets: ["latin"], weight: ["400"], style: ["italic"], variable: "--font-instrument", display: "swap" });
-const baskerville = Libre_Baskerville({ subsets: ["latin"], weight: ["400"], style: ["italic"], variable: "--font-baskerville", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Wusool",
@@ -27,7 +24,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={[newsreader, gelasio, franklin, bagel, caveat, instrument, baskerville].map((f) => f.variable).join(" ")}>
+    <html lang="en" className={[bodoni, franklin].map((f) => f.variable).join(" ")}>
       <body>
         <Providers>{children}</Providers>
       </body>

@@ -21,14 +21,6 @@ export function ExpensesTab({ data }: { data: OutingData; onChanged: () => void 
   };
   const unprocessed = data.evidence.filter((e) => e.status === "uploaded").length;
   const changedSincePublish = data.plan && data.plan.draftRev !== data.outing.draftRev;
-  const sourcesLine = [
-    counts.receipts && `${counts.receipts} receipt${counts.receipts > 1 ? "s" : ""}`,
-    counts.rides && `${counts.rides} ride screenshot${counts.rides > 1 ? "s" : ""}`,
-    counts.manual && `${counts.manual} manual`,
-    counts.story && `${counts.story} from your story`,
-  ]
-    .filter(Boolean)
-    .join(" · ");
 
   if (data.expenses.length === 0 && data.evidence.length === 0) {
     return (
@@ -59,8 +51,8 @@ export function ExpensesTab({ data }: { data: OutingData; onChanged: () => void 
 
       {/* Summary: calm money surface */}
       <div className="surface p-4 ">
-        <p className="t-overline text-ink-2">Total so far{data.outing.isSample ? " · sample" : ""}</p>
-        <div className="mt-1 flex items-center justify-between gap-3">
+        <p className="t-caption text-ink-2">Total</p>
+        <div className="mt-0.5 flex items-center justify-between gap-3">
           <span className="t-amount-l text-[30px]">{formatPKR(total)}</span>
           {open > 0 && (
             <button onClick={() => nav.push(`/o/${id}/review`)} className="t-chip inline-flex h-8 items-center gap-1.5 rounded-full border-[1.5px] border-ink bg-lime-tint px-3">
@@ -68,7 +60,6 @@ export function ExpensesTab({ data }: { data: OutingData; onChanged: () => void 
             </button>
           )}
         </div>
-        <p className="t-caption mt-1 text-ink-2">{sourcesLine || "No sources yet"}</p>
       </div>
 
       {unprocessed > 0 && (
@@ -99,7 +90,7 @@ export function ExpensesTab({ data }: { data: OutingData; onChanged: () => void 
 
       {data.transfers.filter((t) => !t.settlement).length > 0 && (
         <div className="rounded-[16px] bg-paper-warm p-4">
-          <p className="t-overline text-ink-2">Cash handoffs & change</p>
+          <p className="t-label text-[14px]">Cash handoffs & change</p>
           {data.transfers
             .filter((t) => !t.settlement)
             .map((t) => (

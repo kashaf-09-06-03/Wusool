@@ -140,7 +140,7 @@ export function Logo({ type, value, name, size = 88, className, vtName, ring = t
         return <img src="/assets/star3d-cut.png" alt="" className="h-[76%] w-auto object-contain" draggable={false} />;
       case "initial":
         return (
-          <span className="flex h-full w-full items-center justify-center rounded-full bg-blue text-white" style={{ fontFamily: "var(--font-display)", fontStyle: "italic", fontSize: size * 0.46 }}>
+          <span className="flex h-full w-full items-center justify-center rounded-full bg-blue text-white" style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: size * 0.48 }}>
             {initial}
           </span>
         );

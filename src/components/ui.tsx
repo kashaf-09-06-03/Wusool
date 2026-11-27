@@ -6,6 +6,25 @@ import { Check, CheckCheck, ChartPie, CircleAlert, Clock, Heart, Hourglass, Mic,
 import { formatAmount, formatPKR } from "@/lib/money";
 
 // ---------------------------------------------------------------------------
+// Press feel (shared). UIKit-like: the press-in is near-instant and firm, the release is a softer spring
+// that settles without wobble. `depth` is how far it sinks: big surfaces barely move, small controls more.
+// ---------------------------------------------------------------------------
+const PRESS_IN = { type: "spring" as const, stiffness: 1100, damping: 48, mass: 0.5 };
+const RELEASE = { type: "spring" as const, stiffness: 380, damping: 30, mass: 0.8 };
+export const press = (depth = 0.97, dim = 0.94) => ({
+  whileTap: { scale: depth, filter: `brightness(${dim})`, transition: PRESS_IN },
+  transition: RELEASE,
+  className: "press-own",
+});
+
+/** A light tap on Android (ignored on iOS / desktop). Only for commits, never for every touch. */
+export const haptic = () => {
+  try {
+    navigator.vibrate?.(8);
+  } catch {}
+};
+
+// ---------------------------------------------------------------------------
 // Button — Style: Primary / Glass / Outline / Text / Maaf · Size: L / M
 // ---------------------------------------------------------------------------
 type BtnStyle = "primary" | "glass" | "outline" | "text" | "maaf" | "ink" | "danger";
@@ -29,32 +48,46 @@ export const Button = forwardRef<HTMLButtonElement, BtnProps>(function Button({ 
     ink: "gloss-ink text-white",
     danger: "bg-paper text-pink-text ring-[1.5px] ring-inset ring-pink-text/80",
   };
-  const [sweep, setSweep] = useState(0);
   const glossy = variant === "primary" || variant === "maaf" || variant === "ink";
+  const p = press(size === "L" ? 0.97 : 0.95, variant === "text" ? 0.8 : 0.93);
+  const inert = disabled || loading;
   return (
     <motion.button
       ref={ref}
-      whileTap={disabled || loading ? undefined : { scale: 0.96, y: 1 }}
-      whileHover={disabled || loading ? undefined : { y: -1 }}
-      transition={{ type: "spring", stiffness: 650, damping: 28 }}
-      disabled={disabled || loading}
+      whileTap={inert ? undefined : p.whileTap}
+      transition={p.transition}
+      disabled={inert}
       onClick={(e) => {
-        if (glossy) setSweep((s) => s + 1);
+        if (glossy) haptic();
         onClick?.(e as React.MouseEvent<HTMLButtonElement>);
       }}
       className={clsx(
-        "relative inline-flex select-none items-center justify-center overflow-hidden rounded-full font-[family-name:var(--font-ui)] tracking-[-0.01em] transition-[opacity,background-color]",
+        p.className,
+        "relative inline-flex select-none items-center justify-center overflow-hidden rounded-full font-[family-name:var(--font-ui)] tracking-[-0.01em] transition-[opacity] duration-300",
         sizes[size],
         styles[variant],
         full && "w-full",
-        (disabled || loading) && "opacity-40 saturate-50",
+        disabled && !loading && "opacity-40 saturate-50",
         className,
       )}
       {...(rest as object)}
     >
-      {glossy && sweep > 0 && <span key={sweep} aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-1/2 animate-sheen bg-gradient-to-r from-transparent via-white/45 to-transparent" />}
       <span className="relative inline-flex items-center gap-[inherit]">
-        {loading ? <StarSpinner size={size === "L" ? 22 : 18} light={glossy} /> : icon}
+        {/* The icon slot swaps to the spinner with a quick scale-fade; the label stays put. */}
+        <AnimatePresence mode="popLayout" initial={false}>
+          {(loading || icon) && (
+            <motion.span
+              key={loading ? "spin" : "icon"}
+              initial={{ opacity: 0, scale: 0.6 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.6 }}
+              transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
+              className="inline-flex"
+            >
+              {loading ? <StarSpinner size={size === "L" ? 22 : 18} light={glossy} /> : icon}
+            </motion.span>
+          )}
+        </AnimatePresence>
         {children}
       </span>
     </motion.button>
@@ -83,10 +116,10 @@ export function Segmented<T extends string>({ value, options, onChange, layoutId
   return (
     <div role="radiogroup" aria-label={ariaLabel} className="flex rounded-full bg-ink/[0.06] p-1">
       {options.map((o) => (
-        <button key={o.value} role="radio" aria-checked={value === o.value} onClick={() => onChange(o.value)} className={clsx("relative flex-1 rounded-full px-3", size === "S" ? "h-8" : "h-10")}>
-          {value === o.value && <motion.span layoutId={layoutId} className="absolute inset-0 rounded-full bg-paper shadow-[0_2px_10px_-2px_rgba(17,17,20,0.25)]" transition={{ type: "spring", stiffness: 520, damping: 38 }} />}
-          <span className={clsx("relative t-label", size === "S" ? "text-[12.5px]" : "text-[14px]", value === o.value ? "text-ink" : "text-ink-2")}>{o.label}</span>
-        </button>
+        <motion.button key={o.value} role="radio" aria-checked={value === o.value} onClick={() => onChange(o.value)} whileTap={{ scale: 0.95, transition: PRESS_IN }} transition={RELEASE} className={clsx("press-own relative flex-1 rounded-full px-3", size === "S" ? "h-8" : "h-10")}>
+          {value === o.value && <motion.span layoutId={layoutId} className="absolute inset-0 rounded-full bg-paper shadow-[0_2px_10px_-2px_rgba(17,17,20,0.25)]" transition={{ type: "spring", stiffness: 420, damping: 36, mass: 0.8 }} />}
+          <span className={clsx("relative t-label transition-colors duration-300", size === "S" ? "text-[12.5px]" : "text-[14px]", value === o.value ? "text-ink" : "text-ink-2")}>{o.label}</span>
+        </motion.button>
       ))}
     </div>
   );
@@ -109,25 +142,29 @@ export function Aura({ tones = ["lime", "pink", "blue"], className }: { tones?: 
 export function Reveal({ children, className, delay = 0, as = "div" }: { children: ReactNode; className?: string; delay?: number; as?: "div" | "ul" | "section" }) {
   const M = motion[as];
   return (
-    <M className={className} initial="hidden" animate="show" variants={{ hidden: {}, show: { transition: { staggerChildren: 0.055, delayChildren: delay } } }}>
+    <M className={className} initial="hidden" animate="show" variants={{ hidden: {}, show: { transition: { staggerChildren: 0.04, delayChildren: delay } } }}>
       {children}
     </M>
   );
 }
+/** Short rise + fade. No blur: blur entrances are costly on mid-range phones and read as effect, not content. */
 export const revealItem = {
-  hidden: { opacity: 0, y: 18, filter: "blur(6px)" },
-  show: { opacity: 1, y: 0, filter: "blur(0px)", transition: { type: "spring" as const, stiffness: 260, damping: 26 } },
+  hidden: { opacity: 0, y: 10 },
+  show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 320, damping: 32, mass: 0.8 } },
 };
 
 export function IconButton({ label, onClick, children, surface = "glass", className, disabled }: { label: string; onClick?: () => void; children: ReactNode; surface?: "glass" | "solid" | "plain"; className?: string; disabled?: boolean }) {
+  const p = press(0.88, 0.9);
   return (
     <motion.button
-      whileTap={{ scale: 0.9 }}
+      whileTap={disabled ? undefined : p.whileTap}
+      transition={p.transition}
       aria-label={label}
       title={label}
       onClick={onClick}
       disabled={disabled}
       className={clsx(
+        p.className,
         "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink",
         surface === "glass" && "glass",
         surface === "solid" && "glass-solid",
@@ -148,11 +185,12 @@ export function Chip({ selected, onClick, children, className, icon }: { selecte
   return (
     <motion.button
       type="button"
-      whileTap={{ scale: 0.94 }}
+      whileTap={press(0.94).whileTap}
+      transition={RELEASE}
       onClick={onClick}
       aria-pressed={selected}
       className={clsx(
-        "inline-flex h-11 items-center gap-1.5 rounded-full px-4 t-label text-[15px] transition-colors",
+        "press-own inline-flex h-11 items-center gap-1.5 rounded-full px-4 t-label text-[15px] transition-colors duration-300",
         selected ? "gloss-ink text-white" : "bg-paper text-ink ring-[1.5px] ring-inset ring-ink/15 hover:ring-ink/40",
         className,
       )}
@@ -185,7 +223,7 @@ export function SourcePill({ kind, children }: { kind: Provenance; children?: Re
   };
   const c = cfg[kind];
   return (
-    <span className={clsx("inline-flex h-6 items-center gap-1 rounded-full px-2.5 t-overline text-[10px]", c.cls)}>
+    <span className={clsx("inline-flex h-6 items-center gap-1 rounded-full px-2.5 t-chip text-[11.5px] font-medium", c.cls)}>
       {c.icon}
       {children ?? c.label}
     </span>
@@ -347,10 +385,11 @@ export function OptionCard({ title, description, tag, tagTone = "lime", selected
     <motion.button
       type="button"
       onClick={onClick}
-      whileTap={{ scale: 0.985 }}
+      whileTap={press(0.985, 0.97).whileTap}
+      transition={RELEASE}
       role="radio"
       aria-checked={selected}
-      className={clsx("relative w-full rounded-[20px] p-4 text-left transition-[background-color,box-shadow] duration-300", selected ? "bg-blue-tint shadow-[inset_0_0_0_2px_var(--color-ink)]" : "bg-paper shadow-[inset_0_0_0_1.5px_rgba(17,17,20,0.14)] hover:shadow-[inset_0_0_0_1.5px_rgba(17,17,20,0.35)]")}
+      className={clsx("press-own relative w-full rounded-[20px] p-4 text-left transition-[background-color,box-shadow] duration-300", selected ? "bg-blue-tint shadow-[inset_0_0_0_2px_var(--color-ink)]" : "bg-paper shadow-[inset_0_0_0_1.5px_rgba(17,17,20,0.14)] hover:shadow-[inset_0_0_0_1.5px_rgba(17,17,20,0.35)]")}
     >
       <div className="flex items-start gap-3">
         <span className={clsx("mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2", selected ? "border-ink bg-ink" : "border-line-strong bg-paper")}>
@@ -359,7 +398,7 @@ export function OptionCard({ title, description, tag, tagTone = "lime", selected
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2">
             <span className="t-label text-[17px]">{title}</span>
-            {tag && <span className={clsx("rounded-full px-2 py-0.5 t-overline text-[10px]", tagTone === "lime" ? "bg-lime text-ink" : "bg-ink text-white")}>{tag}</span>}
+            {tag && <span className={clsx("rounded-full px-2 py-0.5 t-chip text-[11px]", tagTone === "lime" ? "bg-lime text-ink" : "bg-ink text-white")}>{tag}</span>}
           </span>
           <span className="t-ui mt-1 block text-[14px] text-ink-2">{description}</span>
         </span>
@@ -396,7 +435,7 @@ export function Sheet({ open, onClose, title, subtitle, children, footer, tall }
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center" role="dialog" aria-modal="true">
-          <motion.div className="absolute inset-0 bg-ink/45" style={{ opacity: backdrop }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
+          <motion.div className="absolute inset-0 bg-ink/40 backdrop-blur-[2px]" style={{ opacity: backdrop }} initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.3 } }} exit={{ opacity: 0, transition: { duration: 0.28 } }} onClick={onClose} />
           <motion.div
             ref={ref}
             tabIndex={-1}
@@ -406,9 +445,8 @@ export function Sheet({ open, onClose, title, subtitle, children, footer, tall }
             onDragEnd={onDragEnd}
             style={{ y }}
             initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", stiffness: 380, damping: 38 }}
+            animate={{ y: 0, transition: { type: "spring", stiffness: 340, damping: 36, mass: 0.9 } }}
+            exit={{ y: "100%", transition: { duration: 0.32, ease: [0.32, 0.72, 0, 1] } }}
             className={clsx("relative flex w-full max-w-[480px] flex-col rounded-t-[28px] bg-paper shadow-[0_-12px_40px_rgba(17,17,20,0.2)] outline-none", tall ? "max-h-[94dvh]" : "max-h-[88dvh]")}
           >
             <div className="flex cursor-grab justify-center pt-2.5 pb-1 active:cursor-grabbing">
@@ -548,24 +586,65 @@ export function Notice({ tone = "lime", icon, children, className }: { tone?: "l
   );
 }
 
+/**
+ * Liquid-glass switch. A thin track with a clear glass capsule riding on it: you see the track through the
+ * knob, the colour fill sweeps in behind it, and the capsule stretches a little mid-travel like a drop of
+ * liquid, then settles. Pressing swells the capsule (iOS 26 glass controls do this). ON is to the right.
+ */
 export function Toggle({ checked, onChange, label, description, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; description?: ReactNode; disabled?: boolean }) {
+  const [travel, setTravel] = useState(0);
   return (
     <label className={clsx("flex cursor-pointer items-center gap-4 py-3", disabled && "opacity-50")}>
       <span className="min-w-0 flex-1">
         <span className="t-label block text-[16px]">{label}</span>
         {description && <span className="t-caption mt-0.5 block text-ink-2">{description}</span>}
       </span>
-      <button
+      <motion.button
         type="button"
         role="switch"
         aria-checked={checked}
         aria-label={label}
         disabled={disabled}
-        onClick={() => onChange(!checked)}
-        className={clsx("relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors", checked ? "bg-blue" : "bg-line-strong/50")}
+        onClick={() => {
+          setTravel((t) => t + 1);
+          onChange(!checked);
+        }}
+        whileTap="pressed"
+        className="press-own relative h-[44px] w-[66px] shrink-0"
       >
-        <motion.span layout transition={{ type: "spring", stiffness: 700, damping: 35 }} className={clsx("absolute top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow", checked ? "right-[2px]" : "left-[2px]")} />
-      </button>
+        {/* Track */}
+        <span className="absolute inset-x-0 top-1/2 h-[10px] -translate-y-1/2 overflow-hidden rounded-full bg-[linear-gradient(180deg,rgba(17,17,20,0.16),rgba(17,17,20,0.08))] shadow-[inset_0_1px_2px_rgba(17,17,20,0.18)]">
+          <motion.span
+            className="absolute inset-y-0 left-0 rounded-full bg-[linear-gradient(180deg,#4a63ff,#1f3bff)]"
+            initial={false}
+            animate={{ width: checked ? "100%" : "0%" }}
+            transition={{ type: "spring", stiffness: 260, damping: 30 }}
+          />
+        </span>
+        {/* Glass capsule */}
+        <motion.span
+          initial={false}
+          animate={{ x: checked ? 26 : 0 }}
+          transition={{ type: "spring", stiffness: 420, damping: 30, mass: 0.8 }}
+          className="absolute left-0 top-1/2 -mt-[13px] block"
+        >
+          <motion.span
+            key={travel}
+            initial={false}
+            animate={travel ? { scaleX: [1, 1.22, 0.96, 1], scaleY: [1, 0.86, 1.04, 1] } : undefined}
+            transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}
+            className="block"
+          >
+            <motion.span
+              variants={{ pressed: { scale: 1.12 } }}
+              transition={{ type: "spring", stiffness: 600, damping: 30 }}
+              className="glass-knob flex h-[26px] w-[40px] items-center justify-center rounded-full"
+            >
+              <span className={clsx("t-chip text-[9.5px] tracking-[0.04em] transition-colors duration-300", checked ? "text-blue-deep" : "text-ink-3")}>{checked ? "ON" : "OFF"}</span>
+            </motion.span>
+          </motion.span>
+        </motion.span>
+      </motion.button>
     </label>
   );
 }

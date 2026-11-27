@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { SlidersHorizontal } from "lucide-react";
 import { Screen, useMe } from "@/components/shell";
-import { Notice, Skeleton } from "@/components/ui";
+import { Skeleton } from "@/components/ui";
 import { BalanceRow, BalanceSheet, QuickChoiceCard, ThirdPartySheet } from "@/components/balance";
 import { useNav } from "@/lib/client/nav";
 import { formatPKR } from "@/lib/money";
@@ -85,7 +85,6 @@ export default function Balances() {
             <p className="t-body-s mt-1 max-w-[260px] text-ink-2">They appear when an organizer publishes a split you’re in.</p>
           </div>
         )}
-        <Notice tone="warm">Wusool records who paid; it never moves money. A “Marked Wusooled” is a claim until the person receiving confirms it.</Notice>
       </div>
       <BalanceSheet id={open?.id ?? null} autoMaaf={open?.maaf} onClose={() => (setOpen(null), search.get("focus") && nav.replace("/balances"))} onChanged={() => mutate()} />
       <ThirdPartySheet balanceId={third} onClose={() => setThird(null)} onDone={() => mutate()} />

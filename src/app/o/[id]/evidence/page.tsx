@@ -2,10 +2,10 @@
 import { use, useRef, useState } from "react";
 import useSWR from "swr";
 import { AnimatePresence, motion } from "motion/react";
-import { Camera, CheckCheck, ChevronDown, CircleAlert, Image as ImageIcon, Lock, Pencil, Smartphone, User, X } from "lucide-react";
+import { Camera, CheckCheck, ChevronDown, CircleAlert, Image as ImageIcon, Pencil, Smartphone, User, X } from "lucide-react";
 import clsx from "clsx";
 import { Fab, Screen, TopBar, useMe } from "@/components/shell";
-import { Avatar, Button, Chip, Sheet } from "@/components/ui";
+import { Avatar, Button, Chip, press, Sheet } from "@/components/ui";
 import { api, ApiError, upload } from "@/lib/client/api";
 import { useNav } from "@/lib/client/nav";
 import { useToast } from "@/lib/client/toast";
@@ -97,18 +97,16 @@ export default function Evidence({ params }: { params: Promise<{ id: string }> }
       <TopBar back={`/o/${id}`} title="Add evidence" collapse />
       <div className="px-5">
         <h1 className="t-title">What do you have?</h1>
-        <p className="t-body-s mt-2 text-ink-2">Add every receipt and ride screenshot from the outing. You’ll tell the rest of the story next.</p>
 
         <div className="mt-5 grid grid-cols-3 gap-2.5">
           {[
-            { icon: Camera, t: "Camera", s: "Snap a receipt", on: picker(camera) },
-            { icon: ImageIcon, t: "Gallery", s: "Pick several", on: picker(gallery) },
-            { icon: Smartphone, t: "Screenshot", s: "Rides, transfers", on: picker(shots) },
-          ].map(({ icon: Icon, t, s, on }) => (
-            <motion.button key={t} whileTap={{ scale: 0.95 }} onClick={on} className="flex flex-col items-start rounded-[18px] border border-line bg-paper-warm p-3.5 text-left">
+            { icon: Camera, t: "Camera", on: picker(camera) },
+            { icon: ImageIcon, t: "Gallery", on: picker(gallery) },
+            { icon: Smartphone, t: "Screenshot", on: picker(shots) },
+          ].map(({ icon: Icon, t, on }) => (
+            <motion.button key={t} {...press(0.94, 0.95)} onClick={on} className="press-own flex flex-col items-start rounded-[18px] border border-line bg-paper-warm p-3.5 text-left">
               <Icon size={22} />
-              <span className="t-label mt-5 text-[16px]">{t}</span>
-              <span className="t-caption text-ink-2">{s}</span>
+              <span className="t-label mt-6 text-[16px]">{t}</span>
             </motion.button>
           ))}
         </div>
@@ -116,12 +114,9 @@ export default function Evidence({ params }: { params: Promise<{ id: string }> }
         <input ref={gallery} type="file" accept="image/*" multiple hidden onChange={(e) => (send([...(e.target.files ?? [])], "receipt"), (e.target.value = ""))} />
         <input ref={shots} type="file" accept="image/*" multiple hidden onChange={(e) => (send([...(e.target.files ?? [])], "ride"), (e.target.value = ""))} />
 
-        <div className="mt-3 flex items-center gap-3">
-          <Button variant="outline" size="M" icon={<Pencil size={17} />} onClick={() => nav.push(`/o/${id}/expense/new`)}>
-            Manual expense
-          </Button>
-          <span className="t-caption text-ink-2">No receipt? Add it by hand.</span>
-        </div>
+        <Button variant="text" size="S" className="mt-2 -ml-2" icon={<Pencil size={15} />} onClick={() => nav.push(`/o/${id}/expense/new`)}>
+          Add without a receipt
+        </Button>
 
         <AnimatePresence>
           {uploading.map((u, i) => (
@@ -137,12 +132,7 @@ export default function Evidence({ params }: { params: Promise<{ id: string }> }
           ))}
         </AnimatePresence>
 
-        <div className="mt-6 flex items-center justify-between">
-          <h2 className="t-label text-[17px]">Added · {sources} source{sources === 1 ? "" : "s"}</h2>
-          <span className="t-caption flex items-center gap-1 text-ink-2">
-            <Lock size={13} /> Members only · never in Memories
-          </span>
-        </div>
+        {sources > 0 && <h2 className="t-label mt-6 text-[17px]">Added · {sources}</h2>}
 
         <div className="mt-3 flex flex-col gap-3">
           <AnimatePresence initial={false}>
@@ -158,7 +148,7 @@ export default function Evidence({ params }: { params: Promise<{ id: string }> }
                     <img src={`/api/evidence/${ev.id}/file`} alt={`${KIND_LABEL[ev.kind]} preview`} className="h-full w-full object-cover" />
                   </a>
                   <div className="min-w-0 flex-1">
-                    <button onClick={() => setKind(ev)} className="t-overline text-ink-2" title="Tap to change type">
+                    <button onClick={() => setKind(ev)} className="t-caption text-ink-2" title="Tap to change type">
                       {KIND_LABEL[ev.kind]} ⌄
                     </button>
                     <p className="t-label mt-0.5 truncate text-[16px]">{exp?.title ?? ev.vendor ?? ev.name ?? "Untitled"}</p>
@@ -195,7 +185,7 @@ export default function Evidence({ params }: { params: Promise<{ id: string }> }
                   <Pencil size={20} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="t-overline block text-ink-2">Manual</span>
+                  <span className="t-caption block text-ink-2">Manual</span>
                   <span className="t-label block truncate">
                     {e.title} · {formatPKR(expenseTotal(e))}
                   </span>

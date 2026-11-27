@@ -49,8 +49,7 @@ export function QuickChoiceCard({ b, onWusool, onMaaf }: { b: BalanceData; onWus
   return (
     <motion.div layout initial={{ opacity: 0, y: 16, rotate: -1 }} animate={{ opacity: 1, y: 0, rotate: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="relative overflow-hidden rounded-[24px] border-[1.5px] border-ink bg-paper p-5 shadow-[3px_4px_0_rgba(17,17,20,0.9)]">
       <span aria-hidden className="torn-x absolute -right-6 -top-6 h-20 w-28 rotate-12 bg-lime" />
-      <p className="t-overline relative text-ink-2">Below your {formatPKR(b.threshold)} threshold</p>
-      <p className="t-h2 relative mt-1">
+      <p className="t-h2 relative">
         {first(b.debtor.name)} owes you <span className="t-amount-l whitespace-nowrap">{formatPKR(b.outstanding - b.claimed)}</span>. Wusool or Maaf?
       </p>
       <p className="t-caption relative mt-1 text-ink-2">{b.outing.name}</p>
@@ -181,11 +180,15 @@ export function BalanceSheet({ id, onClose, onChanged, autoMaaf }: { id: string 
               <div className="flex flex-col gap-2">
                 {d.claimed > 0 && <Notice tone="blue" icon={<CheckCheck size={18} className="text-blue" />}>You marked {formatPKR(d.claimed)} as paid. Waiting for {first(d.creditor.name)} to confirm it arrived.</Notice>}
                 {canMark && (
-                  <Button full icon={<Wallet size={20} />} onClick={() => (setAmount(String((d.outstanding - d.claimed) / 100)), setMode("pay"))}>
-                    I paid {first(d.creditor.name)}
-                  </Button>
+                  <>
+                    <Button full icon={<Wallet size={20} />} onClick={() => (onClose(), nav.push(`/pay/${d.id}`))}>
+                      Pay {first(d.creditor.name)}
+                    </Button>
+                    <Button variant="outline" size="M" full onClick={() => (setAmount(String((d.outstanding - d.claimed) / 100)), setMode("pay"))}>
+                      Already paid (cash or other)
+                    </Button>
+                  </>
                 )}
-                <p className="t-caption text-ink-2">Pay with your bank app or cash. Wusool records it; it never moves money.</p>
                 <div className="grid grid-cols-2 gap-2">
                   <Button variant="outline" size="M" onClick={() => nav.push(`/o/${d.outing.id}/me`)}>
                     Why do I owe this?
@@ -225,7 +228,6 @@ export function BalanceSheet({ id, onClose, onChanged, autoMaaf }: { id: string 
                 )}
                 {d.outstanding - d.claimed > 0 && d.status !== "disputed" && (
                   <>
-                    {d.quickChoice && <p className="t-overline text-ink-2">Below your {formatPKR(d.threshold)} small-debt threshold</p>}
                     <div className="grid grid-cols-2 gap-2">
                       <Button size={d.quickChoice ? "L" : "M"} icon={<HandCoins size={18} />} onClick={() => setMode("wusool")}>
                         Wusool
@@ -234,9 +236,14 @@ export function BalanceSheet({ id, onClose, onChanged, autoMaaf }: { id: string 
                         Maaf
                       </Button>
                     </div>
-                    <Button variant="glass" size="M" icon={<Bell size={18} />} onClick={() => setMode("remind")} disabled={Boolean(d.nextReminderAt)}>
-                      {d.nextReminderAt ? `Next reminder ${new Date(d.nextReminderAt).toLocaleString("en-PK", { weekday: "short", hour: "numeric", minute: "2-digit" })}` : "Send a reminder"}
-                    </Button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button variant="glass" size="M" icon={<Send size={17} />} onClick={() => (onClose(), nav.push(`/pay/${d.id}`))}>
+                        Pay link
+                      </Button>
+                      <Button variant="glass" size="M" icon={<Bell size={18} />} onClick={() => setMode("remind")} disabled={Boolean(d.nextReminderAt)}>
+                        {d.nextReminderAt ? "Reminded" : "Remind"}
+                      </Button>
+                    </div>
                   </>
                 )}
                 {d.status !== "disputed" && d.outstanding > 0 && (

@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowRight, Receipt } from "lucide-react";
-import { Button, Notice, Skeleton, Sticker } from "@/components/ui";
+import { Button, Notice, Skeleton } from "@/components/ui";
 import { BalanceRow, BalanceSheet, QuickChoiceCard } from "@/components/balance";
 import { Burst } from "@/components/fx";
 import { useNav } from "@/lib/client/nav";
@@ -23,7 +23,7 @@ export function SettleTab({ data, onChanged }: { data: OutingData; onChanged: ()
         <div className="rounded-[24px] bg-paper-warm p-6 text-center">
           <h3 className="t-card">Not split yet</h3>
           <p className="t-body-s mx-auto mt-1 max-w-[280px] text-ink-2">
-            {data.me.role === "organizer" ? "Review what Wusool understood, choose how to split, then publish. Nobody is notified before you confirm." : `${data.outing.organizerName.split(" ")[0]} will review and publish the split. You’ll get your own breakdown in-app.`}
+            {data.me.role === "organizer" ? "Review it, then publish. Nobody is notified until you do." : `${data.outing.organizerName.split(" ")[0]} will publish the split.`}
           </p>
           {data.expenses.length > 0 && (
             <Button className="mt-5" size="M" icon={<ArrowRight size={18} />} onClick={() => nav.push(`/o/${id}/review`)}>
@@ -48,17 +48,14 @@ export function SettleTab({ data, onChanged }: { data: OutingData; onChanged: ()
         <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative overflow-hidden rounded-[24px] bg-blue p-6 text-center text-white">
           <Burst trigger={celebrate} />
           <motion.img src="/assets/popper3d-cut.png" alt="" className="mx-auto w-28" animate={{ rotate: [-8, 8, -8], y: [0, -6, 0] }} transition={{ repeat: Infinity, duration: 2.6 }} />
-          <div className="mt-2 flex justify-center">
-            <Sticker color="lime">Sab clear! ✦</Sticker>
-          </div>
-          <p className="t-body-s mt-3 text-white/90">Every balance is confirmed or forgiven.</p>
-          {data.me.role === "organizer" && data.outing.status !== "archived" && <p className="t-caption mt-1 text-white/80">You can archive it from ⋯. Memories stay.</p>}
+          <p className="t-card mt-3">Sab clear.</p>
+          <p className="t-body-s mt-1 text-white/85">Every balance is confirmed or forgiven.</p>
         </motion.div>
       )}
 
       <div className="rounded-[20px] border border-line p-4">
-        <p className="t-overline text-ink-2">
-          Version {data.plan.version} · {data.plan.allocation === "equal" ? "Equal split" : "Actual / individual"} · {data.plan.routing === "optimized" ? "Optimized" : "Original debts"}
+        <p className="t-caption text-ink-2">
+          {data.plan.allocation === "equal" ? "Equal split" : "Actual / individual"} · {data.plan.routing === "optimized" ? "Optimized" : "Original debts"}
         </p>
         <div className="mt-2 flex items-end justify-between">
           <div>

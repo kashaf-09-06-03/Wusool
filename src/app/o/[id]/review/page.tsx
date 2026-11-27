@@ -2,7 +2,7 @@
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { AnimatePresence, motion } from "motion/react";
-import { CheckCheck, ChevronLeft, CircleAlert, Ellipsis, Mic, Pencil, Send, ShieldCheck, Sparkles } from "lucide-react";
+import { CheckCheck, ChevronLeft, CircleAlert, Ellipsis, Mic, Pencil, Send, Sparkles } from "lucide-react";
 import clsx from "clsx";
 import { Fab, Screen, TopBar, useMe } from "@/components/shell";
 import { AvatarStack, Button, Chip, IconButton, Notice, OptionCard, Segmented, Sheet, Skeleton, SourcePill, TextField, Toggle, type Provenance } from "@/components/ui";
@@ -76,7 +76,6 @@ export default function Review({ params }: { params: Promise<{ id: string }> }) 
   const blockingAll = data.questions.filter((q) => q.blocking);
   const answered = blockingAll.length - blocking.length;
   const notes = data.questions.filter((q) => !q.blocking && q.status !== "answered");
-  const sourcesN = data.evidence.length + data.expenses.filter((e) => e.source === "manual" || e.source === "sample").length;
 
   return (
     <Screen>
@@ -85,15 +84,8 @@ export default function Review({ params }: { params: Promise<{ id: string }> }) 
         <div>
           <h1 className="t-title">What Wusool understood</h1>
           <p className="t-ui mt-2 text-[14px] text-ink-2">
-            From {sourcesN} source{sourcesN === 1 ? "" : "s"}
-            {data.narrative ? " and your story" : ""} · {data.members.length} people · {formatPKR(total)}
-            {data.outing.isSample ? " (sample)" : ""}
+            {data.members.length} people · {formatPKR(total)}
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <SourcePill kind="receipt" />
-            <SourcePill kind="story" />
-            <SourcePill kind="unsure" />
-          </div>
         </div>
 
         {/* Quick questions (≤ a handful, 2–3 chips each) */}
@@ -139,15 +131,10 @@ export default function Review({ params }: { params: Promise<{ id: string }> }) 
 
         <CorrectionBar outingId={id} onApplied={refresh} />
 
-        {/* Two separate decisions */}
-        <div className="mt-2 border-t-2 border-ink pt-5">
-          <h2 className="t-h2">Two separate decisions</h2>
-          <p className="t-body-s mt-1 text-ink-2">First, what each person’s cost is. Then, who sends money to whom. Each expense above can also be split its own way.</p>
-        </div>
-
-        <section className="rounded-[24px] bg-paper-warm p-4" role="radiogroup" aria-label="Who pays for what">
-          <p className="t-overline text-[10px] text-blue">1 · Allocation: changes what each person owes</p>
-          <h3 className="t-h3 mt-1">Who pays for what?</h3>
+        {/* Two separate decisions: cost allocation, then payment routing (CLAUDE.md §5.6). */}
+        <section className="mt-2 rounded-[24px] bg-paper-warm p-4" role="radiogroup" aria-label="Who pays for what">
+          <h3 className="t-h3">Who pays for what?</h3>
+          <p className="t-caption mt-0.5 text-ink-2">Sets how much each person owes.</p>
           <div className="mt-3 flex flex-col gap-2.5">
             <OptionCard title="Actual / individual" tag="Recommended" selected={allocation === "actual"} onClick={() => isOrg && choose({ allocation: "actual" })} description="Each person pays for what they had. Tax & fees split pro-rata." />
             <OptionCard title="Equal split" selected={allocation === "equal"} onClick={() => isOrg && choose({ allocation: "equal" })} description={preview ? `Everyone pays ${formatPKR(preview.equalShare)} for eligible expenses.` : "Everyone pays the same."} />
@@ -156,8 +143,8 @@ export default function Review({ params }: { params: Promise<{ id: string }> }) 
         </section>
 
         <section className="rounded-[24px] bg-paper-warm p-4" role="radiogroup" aria-label="Who pays whom">
-          <p className="t-overline text-[10px] text-blue">2 · Routing: never changes how much anyone owes</p>
-          <h3 className="t-h3 mt-1">Who pays whom?</h3>
+          <h3 className="t-h3">Who pays whom?</h3>
+          <p className="t-caption mt-0.5 text-ink-2">Only changes who sends money to whom. Nobody’s total changes.</p>
           <div className="mt-3 flex flex-col gap-2.5">
             <OptionCard title="Original debts" tag="Default" tagTone="lime" selected={routing === "original"} onClick={() => isOrg && choose({ routing: "original" })} description={`Pay back whoever paid for you${preview ? ` · ${preview.originalDebts.length} transfer${preview.originalDebts.length === 1 ? "" : "s"}` : ""}.`} />
             <OptionCard title="Optimized" tag="Opt-in" selected={routing === "optimized"} onClick={() => isOrg && choose({ routing: "optimized" })} description={`Fewer transfers, same totals for everyone${preview ? ` · ${preview.optimizedEdges.length} transfer${preview.optimizedEdges.length === 1 ? "" : "s"}` : ""}.`} />
@@ -166,9 +153,6 @@ export default function Review({ params }: { params: Promise<{ id: string }> }) 
           {!isOrg && <p className="t-caption mt-3 text-ink-2">Only the organizer ({data.outing.organizerName.split(" ")[0]}) can change these choices.</p>}
         </section>
 
-        <Notice tone="blue" icon={<ShieldCheck size={18} className="text-blue" />}>
-          Allocation decides each person’s cost. Routing only decides who sends money to whom; it can’t change anyone’s total.
-        </Notice>
       </div>
 
       <Fab>
@@ -181,7 +165,7 @@ export default function Review({ params }: { params: Promise<{ id: string }> }) 
             {data.plan ? "See my breakdown" : "Back to outing"}
           </Button>
         )}
-        <p className="t-caption mt-2 text-center text-ink-2">{blocking.length ? `${blocking.length} question${blocking.length > 1 ? "s" : ""} must be answered before publishing` : "Next: confirm before anyone is notified"}</p>
+        {blocking.length > 0 && <p className="t-caption mt-2 text-center text-ink-2">Answer {blocking.length} question{blocking.length > 1 ? "s" : ""} before publishing</p>}
       </Fab>
 
       {preview && rules && <GraphSheet open={graph} onClose={() => setGraph(false)} preview={preview} data={data} rules={rules} isOrg={!!isOrg} onRules={(r) => choose({ rules: r })} onUse={() => (choose({ routing: "optimized" }), setGraph(false))} onBack={() => (choose({ routing: "original" }), setGraph(false))} />}
@@ -305,12 +289,12 @@ function ExpenseCard({ e, data, index, questions, onEdit, onChanged, optimized }
         <AvatarStack people={people.slice(0, 6)} extra={Math.max(0, people.length - 6)} size={28} />
         <span className="t-caption min-w-0 truncate text-ink-2">{kindLine}</span>
       </div>
-      {sharePill && (
+      {sharePill && sharePill !== "sample" && (
         <div className="mt-2.5">
           <SourcePill kind={sharePill} />
         </div>
       )}
-      {e.charges.length > 0 && <p className="t-caption mt-2.5 text-ink-2">{e.charges.map((c) => c.label.replace(/\s*\(.*\)$/, "")).join(" & ")} as printed on the receipt{data.outing.isSample ? " (sample)" : ""}, split pro-rata to what each person ordered.</p>}
+      {e.charges.length > 0 && <p className="t-caption mt-2.5 text-ink-2">{e.charges.map((c) => c.label.replace(/\s*\(.*\)$/, "")).join(" & ")} split by what each person ordered.</p>}
       {(lowItems.length > 0 || open.length > 0) && (
         <div className="mt-3 flex items-center gap-2 rounded-[14px] border-[1.5px] border-ink bg-lime-tint px-3 py-2.5">
           <CircleAlert size={16} className="shrink-0" />
@@ -395,7 +379,7 @@ function CorrectionBar({ outingId, onApplied }: { outingId: string; onApplied: (
   return (
     <div>
       <div className="flex h-14 items-center gap-2 rounded-full border-[1.5px] border-ink bg-paper pl-5 pr-1.5 shadow-[var(--elev-1)]">
-        <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder="Say or type a fix…" aria-label="Say or type a fix" className="t-ui min-w-0 flex-1 bg-transparent text-[16px] outline-none" />
+        <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder="Type or say a fix" aria-label="Say or type a fix" className="t-ui min-w-0 flex-1 bg-transparent text-[16px] outline-none" />
         {text.trim() ? (
           <IconButton label="Apply fix" surface="plain" onClick={() => send()} disabled={busy}>
             {busy ? <Sparkles size={18} className="animate-pulse" /> : <Send size={18} />}
@@ -406,7 +390,6 @@ function CorrectionBar({ outingId, onApplied }: { outingId: string; onApplied: (
           </IconButton>
         )}
       </div>
-      <p className="t-hand mt-2 text-[19px] text-pink-text">e.g. “Actually Hamza paid for the Careem.”</p>
       <AnimatePresence>
         {result && result.changes.length > 0 && (
           <motion.ul initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-2 rounded-[16px] bg-blue-tint p-3">
@@ -432,12 +415,14 @@ function EqualWarning({ preview, data }: { preview: PreviewData; data: OutingDat
     <div className="flex gap-2.5 rounded-[16px] border-[1.5px] border-pink-text bg-pink-tint p-3.5">
       <CircleAlert size={17} className="mt-0.5 shrink-0 text-pink-text" />
       <p className="t-ui min-w-0 flex-1 text-[14px]">
-        If you pick Equal: it overrides what people actually had.{" "}
+        Equal ignores what people actually had:{" "}
         {entries.map(([id, v], i) => (
-          <span key={id} className="whitespace-nowrap">
-            {m.first(id)} {v > 0 ? "+" : "−"}
-            {i === 0 ? "PKR " : ""}
-            {formatAmount(Math.abs(v))}
+          <span key={id}>
+            <span className="whitespace-nowrap">
+              {m.first(id)} {v > 0 ? "+" : "−"}
+              {i === 0 ? "PKR " : ""}
+              {formatAmount(Math.abs(v))}
+            </span>
             {i < entries.length - 1 ? " · " : "."}
           </span>
         ))}
@@ -484,7 +469,11 @@ function OptimizedPanel({ preview, data, onOpen, onBack }: { preview: PreviewDat
         </ul>
         <p className="t-caption mt-2 flex items-center gap-1.5">
           <CheckCheck size={15} className={preview.netsPreserved ? "text-blue" : "text-pink-text"} />
-          {preview.netsPreserved ? "Net amounts unchanged for everyone. We only removed middle steps." : "These rules would change someone’s total; not allowed."}
+          {preview.netsPreserved
+            ? "Net amounts unchanged for everyone. We only removed middle steps."
+            : preview.invariants && !preview.invariants.netsSumToZero
+              ? "An expense still needs a payer. Fix that first, then optimize."
+              : "These rules would change someone’s total; not allowed."}
         </p>
         <div className="mt-3 flex gap-2">
           <Button size="S" variant="outline" onClick={onOpen}>

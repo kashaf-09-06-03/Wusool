@@ -2,7 +2,7 @@
 import { use, useState } from "react";
 import useSWR from "swr";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronDown, Eye, EyeOff, Receipt } from "lucide-react";
+import { ChevronDown, Eye, Receipt } from "lucide-react";
 import clsx from "clsx";
 import { Screen, TopBar, useMe } from "@/components/shell";
 import { Amount, Button, Notice, Skeleton, StatusChip, type StatusKey } from "@/components/ui";
@@ -52,10 +52,7 @@ export default function MyBreakdown({ params }: { params: Promise<{ id: string }
       <TopBar back={`/o/${id}`} title="My breakdown" />
       <div className="flex flex-col gap-5 px-5 pb-10">
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="rounded-[24px] bg-ink p-5 text-white">
-          <p className="t-overline text-white/70">
-            {d.outing.name} · version {d.version}
-          </p>
-          <p className="t-caption mt-3 text-white/70">{d.net < 0 ? "You owe in total" : d.net > 0 ? "You’re owed in total" : "You’re all square"}</p>
+          <p className="t-caption text-white/70">{d.net < 0 ? "You owe in total" : d.net > 0 ? "You’re owed in total" : "You’re all square"}</p>
           <Amount value={Math.abs(d.net)} className="t-amount-xl" />
           <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/15 pt-3">
             <div>
@@ -67,9 +64,6 @@ export default function MyBreakdown({ params }: { params: Promise<{ id: string }
               <p className="t-amount-m">{formatPKR(d.paid)}</p>
             </div>
           </div>
-          <p className="t-caption mt-3 text-white/70">
-            {d.allocation === "equal" ? "Equal split of eligible expenses" : "Actual / individual: you pay for what you had"} · {d.routing === "optimized" ? "optimized transfers" : "original debts"}
-          </p>
         </motion.div>
 
         {(owe.length > 0 || owed.length > 0) && (
@@ -99,9 +93,6 @@ export default function MyBreakdown({ params }: { params: Promise<{ id: string }
 
         <section>
           <h2 className="t-h3">Why do I owe this?</h2>
-          <p className="t-caption mt-0.5 flex items-center gap-1.5 text-ink-2">
-            <EyeOff size={13} /> Only your items are shown. Others’ individual items stay private.
-          </p>
           <div className="mt-3 flex flex-col gap-2.5">
             {d.expenses.map((e) => {
               if (!e) return null;
@@ -180,7 +171,7 @@ export default function MyBreakdown({ params }: { params: Promise<{ id: string }
 
         <div className="rounded-[18px] border border-line p-4">
           <p className="t-label">Still looks wrong?</p>
-          <p className="t-caption mt-0.5 text-ink-2">Open a dispute on the balance. Reminders pause and the organizer can correct the expense.</p>
+          <p className="t-caption mt-0.5 text-ink-2">Open a dispute. Reminders pause while the organizer fixes it.</p>
           <div className="mt-3 flex gap-2">
             {owe[0] && (
               <Button size="S" variant="outline" onClick={() => setOpen(owe[0].balanceId)}>

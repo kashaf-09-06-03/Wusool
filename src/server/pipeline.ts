@@ -547,6 +547,11 @@ export async function processOuting(outingId: string, user: User, emit: (e: Stag
       continue;
     }
     const parsed = r.parsed;
+    // A ride screenshot is one fare. Some models return only the total for it; treat that total as the fare
+    // instead of discarding the ride. (Receipts with no lines still go to the "add it by hand" question.)
+    if (parsed.items.length === 0 && parsed.kind === "ride" && parsed.total && parsed.total > 0) {
+      parsed.items = [{ name: "Fare", quantity: 1, lineTotal: parsed.total, confidence: "high", raw: `Fare ${parsed.total}` }];
+    }
     if (parsed.items.length === 0) {
       run("UPDATE evidence SET status = 'unreadable', engine = ?, parsed = ? WHERE id = ?", r.engine, JSON.stringify(parsed), ev.id);
       notices.push(`${ev.original_name ?? "One image"}: no amounts found. Crop or retake it, or add it by hand.`);

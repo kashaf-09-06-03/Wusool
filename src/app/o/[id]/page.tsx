@@ -1,15 +1,15 @@
 "use client";
-import { use, useState } from "react";
+import { use, useRef, useState } from "react";
 import useSWR from "swr";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion, useMotionValueEvent, useScroll, useTransform } from "motion/react";
-import { ChevronLeft, Ellipsis, Mic, Plus, Share, Users } from "lucide-react";
+import { ChevronLeft, Ellipsis, Mic, Plus, Share, Upload, Users } from "lucide-react";
 import clsx from "clsx";
 import { Screen, useMe } from "@/components/shell";
-import { Button, ConfirmSheet, IconButton, Sheet, Skeleton, Sticker, TextField } from "@/components/ui";
+import { Button, ConfirmSheet, IconButton, press, Sheet, Skeleton, TextField } from "@/components/ui";
 import { OutingHeader } from "@/components/OutingHeader";
 import { BANNER_PRESETS, Banner, Logo } from "@/components/collage";
-import { api, ApiError } from "@/lib/client/api";
+import { api, ApiError, upload } from "@/lib/client/api";
 import { useNav } from "@/lib/client/nav";
 import { useToast } from "@/lib/client/toast";
 import type { OutingData } from "@/lib/client/types";
@@ -30,6 +30,11 @@ export default function OutingPage({ params }: { params: Promise<{ id: string }>
   const [tab, setTab] = useState<Tab>((TABS as readonly string[]).includes(search.get("tab") ?? "") ? (search.get("tab") as Tab) : "expenses");
   const nav = useNav();
   const toast = useToast();
+  const [tabDir, setTabDir] = useState(1);
+  const pickTab = (t: Tab) => {
+    setTabDir(TABS.indexOf(t) >= TABS.indexOf(tab) ? 1 : -1);
+    setTab(t);
+  };
   const [menu, setMenu] = useState(false);
   const [rename, setRename] = useState<string | null>(null);
   const [look, setLook] = useState(false);
@@ -84,7 +89,7 @@ export default function OutingPage({ params }: { params: Promise<{ id: string }>
             members={data.members}
             memberCount={data.members.length}
             onRename={isOrg ? () => setRename(data.outing.name) : undefined}
-            sticker={data.outing.isSample ? <Sticker color="lime">sea breeze ✦</Sticker> : undefined}
+            onLogo={isOrg ? () => setLook(true) : undefined}
             topLeft={
               <IconButton label="Back" surface="solid" onClick={() => nav.push("/")}>
                 <ChevronLeft size={24} />
@@ -121,8 +126,8 @@ export default function OutingPage({ params }: { params: Promise<{ id: string }>
           <div className="sticky top-[60px] z-20 bg-paper/90 px-4 pt-3 pb-3 backdrop-blur-md">
             <div role="tablist" aria-label="Outing sections" className="glass flex rounded-full p-1">
               {TABS.map((t) => (
-                <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className="relative h-11 flex-1 rounded-full">
-                  {tab === t && <motion.span layoutId="outing-tab" className="absolute inset-0 rounded-full bg-paper shadow-[0_2px_10px_rgba(17,17,20,0.12)]" transition={{ type: "spring", stiffness: 500, damping: 38 }} />}
+                <button key={t} role="tab" aria-selected={tab === t} onClick={() => pickTab(t)} className="relative h-11 flex-1 rounded-full">
+                  {tab === t && <motion.span layoutId="outing-tab" className="absolute inset-0 rounded-full bg-paper shadow-[0_2px_10px_rgba(17,17,20,0.12)]" transition={{ type: "spring", stiffness: 420, damping: 36, mass: 0.8 }} />}
                   <span className={clsx("relative t-label text-[14px] capitalize", tab === t ? "text-ink" : "text-ink-2")}>{t}</span>
                   {t === "members" && data.pending.length > 0 && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-pink" />}
                 </button>
@@ -130,8 +135,22 @@ export default function OutingPage({ params }: { params: Promise<{ id: string }>
             </div>
           </div>
 
-          <AnimatePresence mode="wait">
-            <motion.div key={tab} initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -14 }} transition={{ duration: 0.18 }} className="px-4 pb-6">
+          {/* Tab content slides toward the tab you picked (custom = direction), like a paged view. */}
+          <AnimatePresence mode="popLayout" initial={false} custom={tabDir}>
+            <motion.div
+              key={tab}
+              custom={tabDir}
+              variants={{
+                enter: (d: number) => ({ opacity: 0, x: d * 56 }),
+                center: { opacity: 1, x: 0 },
+                exit: (d: number) => ({ opacity: 0, x: d * -40 }),
+              }}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ x: { type: "spring", stiffness: 340, damping: 34, mass: 0.8 }, opacity: { duration: 0.22 } }}
+              className="px-4 pb-6"
+            >
               {tab === "expenses" && <ExpensesTab data={data} onChanged={() => mutate()} />}
               {tab === "settle" && <SettleTab data={data} onChanged={() => mutate()} />}
               {tab === "members" && <MembersTab data={data} onChanged={() => mutate()} />}
@@ -148,7 +167,7 @@ export default function OutingPage({ params }: { params: Promise<{ id: string }>
                     Rename
                   </Button>
                   <Button variant="outline" full onClick={() => (setMenu(false), setLook(true))}>
-                    Banner & logo
+                    Picture & banner
                   </Button>
                 </>
               )}
@@ -170,7 +189,7 @@ export default function OutingPage({ params }: { params: Promise<{ id: string }>
             {rename !== null && <TextField label="Outing name" value={rename} onChange={setRename} maxLength={40} autoFocus helper={`${rename.length}/40 · empty restores Outing ${String(data.outing.seq).padStart(3, "0")}`} onEnter={() => save({ name: rename }, "Renamed")} />}
           </Sheet>
 
-          <LookSheet open={look} onClose={() => setLook(false)} data={data} busy={busy} onSave={(b) => save(b, "Saved. Everyone sees the new header.")} />
+          <LookSheet open={look} onClose={() => setLook(false)} data={data} busy={busy} onSave={(b) => save(b, "Saved")} />
 
           <Sheet open={activity} onClose={() => setActivity(false)} title="Activity history" subtitle="Every change is kept. Nothing is silently rewritten.">
             <ol className="pb-4">
@@ -201,33 +220,83 @@ export default function OutingPage({ params }: { params: Promise<{ id: string }>
   );
 }
 
-/** B3: banner & logo, with a live preview. Uploaded photos come from Memories (I4). */
-function LookSheet({ open, onClose, data, onSave, busy }: { open: boolean; onClose: () => void; data: OutingData; onSave: (b: object) => void; busy: boolean }) {
+/** B3: picture & banner, with a live preview. A custom picture is uploaded to the outing's photos, then used. */
+function LookSheet({ open, onClose, data, onSave, busy }: { open: boolean; onClose: () => void; data: OutingData; onSave: (b: object) => Promise<void> | void; busy: boolean }) {
   const [banner, setBanner] = useState(data.outing.banner);
   const [logo, setLogo] = useState(data.outing.logoType);
+  const [file, setFile] = useState<{ file: File; url: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  const toast = useToast();
+  const save = async () => {
+    if (logo !== "upload" || !file) return onSave({ banner, logoType: logo === "upload" && !data.outing.logoValue ? data.outing.logoType : logo });
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file.file);
+      const r = await upload<{ results: { ok: boolean; id?: string; error?: string }[] }>(`/api/outings/${data.outing.id}/photos`, form);
+      const id = r.results[0]?.id;
+      if (!id) {
+        toast(r.results[0]?.error ?? "Couldn’t upload that picture", "error");
+        return;
+      }
+      await onSave({ banner, logoType: "upload", logoValue: id });
+      setFile(null);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Couldn’t upload that picture", "error");
+    } finally {
+      setUploading(false);
+    }
+  };
+  const showUpload = Boolean(file || (logo === "upload" && data.outing.logoValue));
   return (
-    <Sheet open={open} onClose={onClose} title="Banner & logo" footer={<Button full loading={busy} onClick={() => onSave({ banner, logoType: logo === "upload" ? data.outing.logoType : logo })}>Save</Button>}>
+    <Sheet open={open} onClose={onClose} title="Picture & banner" footer={<Button full loading={busy || uploading} onClick={save}>Save</Button>}>
       <div className="relative mb-12">
         <Banner banner={banner} className="h-36 rounded-[18px]" />
         <div className="absolute -bottom-8 left-4">
-          <Logo type={logo} value={data.outing.logoValue} name={data.outing.name} size={68} />
+          {logo === "upload" && file ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={file.url} alt="" className="h-[68px] w-[68px] rounded-full border-[3px] border-white object-cover shadow-[0_6px_18px_rgba(17,17,20,0.18)]" />
+          ) : (
+            <Logo type={logo} value={data.outing.logoValue} name={data.outing.name} size={68} />
+          )}
         </div>
       </div>
-      <p className="t-label mb-2">Banner</p>
-      <div className="grid grid-cols-4 gap-2">
-        {BANNER_PRESETS.map((b) => (
-          <button key={b.id} onClick={() => setBanner(b.id)} aria-pressed={banner === b.id} className={clsx("aspect-square overflow-hidden rounded-[14px]", banner === b.id ? "ring-[3px] ring-ink" : "border border-line")}>
-            <Banner banner={b.id} className="h-full w-full" compact />
-          </button>
-        ))}
-      </div>
-      <p className="t-caption mt-2 text-ink-2">To use your own photo, add it in Memories and choose “Set as banner”.</p>
-      <p className="t-label mb-2 mt-5">Logo</p>
-      <div className="flex gap-3 pb-4">
+      <p className="t-label mb-2">Picture</p>
+      <div className="flex gap-3 pb-1">
         {["cup3d", "star3d", "initial", "sticker"].map((l) => (
-          <button key={l} onClick={() => setLogo(l)} aria-pressed={logo === l} className={clsx("rounded-full p-[3px]", logo === l && "ring-[3px] ring-ink")}>
-            <Logo type={l} name={data.outing.name} size={56} ring={false} className="border border-line" />
-          </button>
+          <motion.button key={l} {...press(0.9, 0.95)} onClick={() => setLogo(l)} aria-pressed={logo === l} aria-label={l} className={clsx("press-own rounded-full p-[3px]", logo === l && "ring-[3px] ring-ink")}>
+            <Logo type={l} name={data.outing.name} size={52} ring={false} className="border border-line" />
+          </motion.button>
+        ))}
+        <motion.button {...press(0.9, 0.95)} onClick={() => input.current?.click()} aria-pressed={logo === "upload"} aria-label="Upload a picture" className={clsx("press-own rounded-full p-[3px]", logo === "upload" && "ring-[3px] ring-ink")}>
+          {showUpload ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={file?.url ?? `/api/photos/${data.outing.logoValue}`} alt="" className="h-[52px] w-[52px] rounded-full object-cover" />
+          ) : (
+            <span className="flex h-[52px] w-[52px] items-center justify-center rounded-full border-2 border-dashed border-line-strong bg-paper-warm">
+              <Upload size={18} />
+            </span>
+          )}
+        </motion.button>
+        <input
+          ref={input}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) (setFile({ file: f, url: URL.createObjectURL(f) }), setLogo("upload"));
+            e.target.value = "";
+          }}
+        />
+      </div>
+      <p className="t-label mb-2 mt-5">Banner</p>
+      <div className="grid grid-cols-4 gap-2 pb-4">
+        {BANNER_PRESETS.map((b) => (
+          <motion.button key={b.id} {...press(0.94, 0.95)} onClick={() => setBanner(b.id)} aria-pressed={banner === b.id} aria-label={b.label} className={clsx("press-own aspect-square overflow-hidden rounded-[14px]", banner === b.id ? "ring-[3px] ring-ink" : "border border-line")}>
+            <Banner banner={b.id} className="h-full w-full" compact />
+          </motion.button>
         ))}
       </div>
     </Sheet>

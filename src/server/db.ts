@@ -311,6 +311,11 @@ export function db(): DatabaseSync {
     for (const sql of [
       "ALTER TABLE expenses ADD COLUMN split_mode TEXT NOT NULL DEFAULT 'itemised'",
       "ALTER TABLE expenses ADD COLUMN direct INTEGER NOT NULL DEFAULT 0",
+      // "Get paid" details (see server/payments.ts)
+      "ALTER TABLE users ADD COLUMN pay_raast TEXT",
+      "ALTER TABLE users ADD COLUMN pay_iban TEXT",
+      "ALTER TABLE users ADD COLUMN pay_title TEXT",
+      "ALTER TABLE users ADD COLUMN pay_bank TEXT",
     ]) {
       try {
         d.exec(sql);

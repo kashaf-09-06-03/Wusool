@@ -3,64 +3,90 @@ import { createContext, useCallback, useContext, useEffect, useRef, type ReactNo
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 /**
- * Shared-element page transitions with the View Transitions API.
- * Elements that carry the same `view-transition-name` on two pages (e.g. an outing
- * card's banner on Home and the header on the Outing page) morph into each other.
- * Falls back to plain navigation where unsupported or when reduced motion is on.
+ * Page transitions, two layers so a transition is ALWAYS visible:
+ *
+ * 1. View Transitions API (Chromium, Safari 18+): the browser snapshots the old page and slides the new one
+ *    over it, and elements sharing a `view-transition-name` (an outing's banner, logo, title) morph between
+ *    pages. This needs the next page to be ready quickly.
+ * 2. Entrance fallback: if the next page isn't ready within the budget (first visit, slow network, the dev
+ *    server compiling), or the browser has no View Transitions, we skip the snapshot (which would otherwise
+ *    slide the OLD page into itself) and instead animate the new page in as it arrives.
+ *
+ * Directions: forward/back (iOS push/pop), tab-left/tab-right (sideways between tabs), replace (fade).
  */
-type Nav = { push: (href: string) => void; replace: (href: string) => void; back: () => void };
+type Direction = "forward" | "back" | "replace" | "tab-left" | "tab-right";
+type Nav = { push: (href: string) => void; replace: (href: string) => void; back: () => void; tab: (href: string, direction: "tab-left" | "tab-right") => void };
 const Ctx = createContext<Nav | null>(null);
+
+/** Routes every signed-in user reaches from the tab bar; prefetched so tab switches are instant. */
+const WARM = ["/", "/balances", "/inbox", "/profile", "/o/new"];
+const BUDGET_MS = 650;
 
 export function NavProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
   const pending = useRef<(() => void) | null>(null);
+  const enterNext = useRef<Direction | null>(null);
 
   useEffect(() => {
     pending.current?.();
     pending.current = null;
+    // Fallback entrance for a page that arrived after the View Transition was skipped (or never started).
+    const dir = enterNext.current;
+    enterNext.current = null;
+    if (!dir) return;
+    const root = document.documentElement;
+    root.dataset.enter = dir;
+    const t = setTimeout(() => {
+      if (root.dataset.enter === dir) delete root.dataset.enter;
+    }, 560);
+    return () => clearTimeout(t);
   }, [pathname, search]);
 
-  const go = useCallback(
-    (fn: () => void, direction: "forward" | "back" | "replace") => {
-      type VT = { skipTransition: () => void; ready: Promise<void>; finished: Promise<void> };
-      const doc = document as Document & { startViewTransition?: (cb: () => Promise<void>) => VT };
-      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      document.documentElement.dataset.nav = direction;
-      if (!doc.startViewTransition || reduce) return fn();
-      let transition: VT | undefined = undefined;
-      transition = doc.startViewTransition(
-        () =>
-          new Promise<void>((resolve) => {
-            pending.current = resolve;
-            fn();
-            // The browser keeps showing a frozen picture of the current page until we resolve, then slides
-            // whatever is on screen at that moment. If the next page still hasn't arrived (first visit of a
-            // dynamic route, slow network, dev compile), sliding would animate the OLD page into itself and
-            // then pop the real one in. So: give up on the animation, unfreeze, and let the page appear when ready.
-            setTimeout(() => {
-              if (pending.current !== resolve) return; // navigation already committed in time
-              pending.current = null;
-              transition?.skipTransition();
-              resolve();
-            }, 700);
-          }),
-      );
-      // A skipped transition rejects these; that's expected, not an error.
-      transition.ready.catch(() => {});
-      transition.finished.catch(() => {});
-    },
-    [],
-  );
+  useEffect(() => {
+    const id = setTimeout(() => WARM.forEach((r) => router.prefetch(r)), 1200);
+    return () => clearTimeout(id);
+  }, [router]);
+
+  const go = useCallback((fn: () => void, direction: Direction) => {
+    type VT = { skipTransition: () => void; ready: Promise<void>; finished: Promise<void> };
+    const doc = document as Document & { startViewTransition?: (cb: () => Promise<void>) => VT };
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    document.documentElement.dataset.nav = direction;
+    if (reduce) return fn();
+    if (!doc.startViewTransition) {
+      enterNext.current = direction;
+      return fn();
+    }
+    let transition: VT | undefined = undefined;
+    transition = doc.startViewTransition(
+      () =>
+        new Promise<void>((resolve) => {
+          pending.current = resolve;
+          fn();
+          setTimeout(() => {
+            if (pending.current !== resolve) return; // the new page committed in time: the browser animates it
+            pending.current = null;
+            transition?.skipTransition();
+            enterNext.current = direction; // animate the page in when it lands instead
+            resolve();
+          }, BUDGET_MS);
+        }),
+    );
+    // A skipped transition rejects these; that's expected, not an error.
+    transition.ready.catch(() => {});
+    transition.finished.catch(() => {});
+  }, []);
 
   // Depth heuristic for push/pop direction: going to a shorter path (or Home) reads as "back".
   const depth = (p: string) => (p === "/" ? 0 : p.split("?")[0].split("/").filter(Boolean).length);
-  const dir = (href: string) => (depth(href) < depth(pathname) ? "back" : "forward");
+  const dir = (href: string): Direction => (depth(href) < depth(pathname) ? "back" : "forward");
   const nav: Nav = {
     push: (href) => go(() => router.push(href), dir(href)),
     replace: (href) => go(() => router.replace(href), "replace"),
     back: () => go(() => router.back(), "back"),
+    tab: (href, direction) => go(() => router.push(href), direction),
   };
   return <Ctx.Provider value={nav}>{children}</Ctx.Provider>;
 }
